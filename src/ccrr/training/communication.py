@@ -113,6 +113,7 @@ def stage_f(experiment):
     experiment.bind_snapshot("F-selected")
 
 
+@torch.no_grad()
 def validate_communication_warmup(experiment, step):
     experiment.system.eval()
     generator = ProbeGenerator(

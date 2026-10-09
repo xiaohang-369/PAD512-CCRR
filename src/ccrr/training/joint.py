@@ -54,29 +54,7 @@ def joint(experiment, stage="H"):
         chosen = rng.integers(
             len(experiment.fit), size=experiment.cfg.get("batch_images", 8)
         )
-        feasible = []
-        for i in chosen:
-            b = collate([experiment.fit[int(i)]], experiment.device)
-            try:
-                with torch.no_grad():
-                    credentials = experiment.allocator.new_object(
-                        experiment.system.digest
-                    )
-                    sent = experiment.system.send(
-                        b["x"],
-                        b["metadata"][0],
-                        b["legal"],
-                        experiment.risks[b["id"][0]],
-                        credentials,
-                        experiment.allocator,
-                        experiment.policies[b["id"][0]],
-                        rng.permutation(experiment.profile.legal_levels).tolist(),
-                    )
-                # Reuse this exact protected table for the gradient pass; no success filtering.
-                feasible.append((int(i), sent))
-            except CCRRError as exc:
-                if exc.status != Status.CAPACITY:
-                    raise
+        feasible = _prepare_joint_batch(experiment, chosen, rng)
         if not feasible and stage == "H":
             empty_streak += 1
             require(
@@ -87,54 +65,9 @@ def joint(experiment, stage="H"):
         empty_streak = 0
         adversarial.adversarial_updates(experiment, stage, step, advopt)
         opt.zero_grad(set_to_none=True)
-        values = []
-        for i, cached in feasible:
-            b = collate([experiment.fit[i]], experiment.device)
-            u, z, g, n, zq = experiment.system.quantized(b["x"], cached["level"])
-            require(
-                torch.equal(n.detach(), cached["n"]),
-                "Latent changed within one optimizer update",
-            )
-            public, _ = experiment.system.comm.write(
-                g, cached["bits"], cached["occupancy"], b["legal"]
-            )
-            logits = experiment.system.comm.read(public)
-            dec, _ = message_loss(logits, cached["bits"], cached["occupancy"])
-            rec = experiment.system.recover(public, zq)
-            target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
-            clin, ident, _ = experiment.supervision.loss(
-                public, b["rect"], b["label"], target
-            )
-            loss = (
-                dec
-                + masked_mean((public - g).abs() / (4 / 255), b["v"])
-                + reconstruction(b["x"], rec, b["v"])
-                + clin
-                + 0.1 * experiment.cfg["lambda_privacy"] * ident
-            )
-            (loss / len(feasible)).backward()
-            values.append(float(loss.detach()))
+        values = _accumulate_message_gradients(experiment, feasible)
         if stage == "I":
-            for i in chosen:
-                b = collate([experiment.fit[int(i)]], experiment.device)
-                r = int(rng.integers(1, 4))
-                u, z, g, n, zq = experiment.system.quantized(b["x"], r)
-                target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
-                clin, ident, _ = experiment.supervision.loss(
-                    g, b["rect"], b["label"], target
-                )
-                loss = (
-                    reconstruction(b["x"], experiment.system.recover(g, zq), b["v"])
-                    + 0.1 * gray_loss(g, b["x"], b["v"])
-                    + 1e-3 * saturation(u, b["v"])
-                    + clin
-                    + 0.1 * experiment.cfg["lambda_privacy"] * ident
-                    + experiment.cfg["lambda_rate"]
-                    * experiment.system.entropy.rate(
-                        z, r, experiment.profile.step(r)
-                    ).mean()
-                )
-                (loss / len(chosen)).backward()
+            _accumulate_representation_gradients(experiment, chosen, rng)
         adversarial.pair_objective(experiment, stage, step)
         schedule(opt, step, total)
         norm = update(opt)
@@ -167,6 +100,85 @@ def joint(experiment, stage="H"):
                     report,
                 )
     require(step == total, "Joint stage did not reach prescribed updates")
+    return _finalize_joint(experiment, stage, best, step)
+
+
+def _prepare_joint_batch(experiment, chosen, rng):
+    feasible = []
+    for i in chosen:
+        b = collate([experiment.fit[int(i)]], experiment.device)
+        try:
+            with torch.no_grad():
+                credentials = experiment.allocator.new_object(experiment.system.digest)
+                sent = experiment.system.send(
+                    b["x"],
+                    b["metadata"][0],
+                    b["legal"],
+                    experiment.risks[b["id"][0]],
+                    credentials,
+                    experiment.allocator,
+                    experiment.policies[b["id"][0]],
+                    rng.permutation(experiment.profile.legal_levels).tolist(),
+                )
+            # Reuse this exact protected table for the gradient pass; no success filtering.
+            feasible.append((int(i), sent))
+        except CCRRError as exc:
+            if exc.status != Status.CAPACITY:
+                raise
+    return feasible
+
+
+def _accumulate_message_gradients(experiment, feasible):
+    values = []
+    for i, cached in feasible:
+        b = collate([experiment.fit[i]], experiment.device)
+        u, z, g, n, zq = experiment.system.quantized(b["x"], cached["level"])
+        require(
+            torch.equal(n.detach(), cached["n"]),
+            "Latent changed within one optimizer update",
+        )
+        public, _ = experiment.system.comm.write(
+            g, cached["bits"], cached["occupancy"], b["legal"]
+        )
+        logits = experiment.system.comm.read(public)
+        dec, _ = message_loss(logits, cached["bits"], cached["occupancy"])
+        rec = experiment.system.recover(public, zq)
+        target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
+        clin, ident, _ = experiment.supervision.loss(
+            public, b["rect"], b["label"], target
+        )
+        loss = (
+            dec
+            + masked_mean((public - g).abs() / (4 / 255), b["v"])
+            + reconstruction(b["x"], rec, b["v"])
+            + clin
+            + 0.1 * experiment.cfg["lambda_privacy"] * ident
+        )
+        (loss / len(feasible)).backward()
+        values.append(float(loss.detach()))
+    return values
+
+
+def _accumulate_representation_gradients(experiment, chosen, rng):
+    for i in chosen:
+        b = collate([experiment.fit[int(i)]], experiment.device)
+        r = int(rng.integers(1, 4))
+        u, z, g, n, zq = experiment.system.quantized(b["x"], r)
+        target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
+        clin, ident, _ = experiment.supervision.loss(g, b["rect"], b["label"], target)
+        loss = (
+            reconstruction(b["x"], experiment.system.recover(g, zq), b["v"])
+            + 0.1 * gray_loss(g, b["x"], b["v"])
+            + 1e-3 * saturation(u, b["v"])
+            + clin
+            + 0.1 * experiment.cfg["lambda_privacy"] * ident
+            + experiment.cfg["lambda_rate"]
+            * experiment.system.entropy.rate(z, r, experiment.profile.step(r)).mean()
+        )
+        (loss / len(chosen)).backward()
+
+
+def _finalize_joint(experiment, stage, best, step):
     if stage == "I":
         from ccrr.evaluation.joint_b import accepts
 

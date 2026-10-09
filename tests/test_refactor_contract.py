@@ -19,6 +19,7 @@ from ccrr.errors import CCRRError
 from ccrr.representation.inn import INN
 from ccrr.runtime.checkpoints import load_checkpoint, save_checkpoint
 from ccrr.runtime.smoke import run as smoke
+from ccrr.runtime.system import CCRR, save_public
 from ccrr.tensor_ops import public_adapter, q8
 from ccrr.training import runner
 from ccrr.training.optimization import optimizer, schedule, update
@@ -212,3 +213,58 @@ def test_real_512_smoke_keeps_untrained_extraction_failure(tmp_path, capsys):
         "M": "Extraction Failure",
     }
     assert not report["training_started"] and not report["formal_experiment_passed"]
+
+
+def test_cli_export_and_receive_real_untrained_bundle(tmp_path, capsys):
+    """Exercise serialization/CLI plumbing; blind extraction must still fail."""
+    torch.manual_seed(20261008)
+    system = CCRR(Profile(size=256))
+    checkpoint = tmp_path / "system.pt"
+    torch.save(system.state_dict(), checkpoint)
+    cdf = tmp_path / "cdf.npy"
+    np.save(cdf, system.entropy.export())
+    config = tmp_path / "config.yaml"
+    config.write_text(yaml.safe_dump({"profile": {"size": 256, "research": True}}))
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text('{"scope":"untrained engineering fixture"}')
+    bundle = tmp_path / "bundle"
+    assert (
+        main(
+            [
+                "export",
+                "--checkpoint",
+                str(checkpoint),
+                "--cdf",
+                str(cdf),
+                "--config",
+                str(config),
+                "--evidence",
+                str(evidence),
+                "--out",
+                str(bundle),
+            ]
+        )
+        == 0
+    )
+    public = tmp_path / "public.png"
+    save_public(torch.full((1, 1, 256, 256), 128 / 255), public)
+    recovered = tmp_path / "received"
+    assert (
+        main(
+            [
+                "receive",
+                "--manifest",
+                str(bundle / "manifest.json"),
+                "--image",
+                str(public),
+                "--out",
+                str(recovered),
+            ]
+        )
+        == 0
+    )
+    report = json.loads((recovered / "status.json").read_text())
+    assert report["C"]["status"] == report["M"]["status"] == "Extraction Failure"
+    assert not (recovered / "recovered.png").exists()
+    assert not (recovered / "metadata.json").exists()
+    capsys.readouterr()

@@ -43,8 +43,6 @@ def inspect(args):
     print(json.dumps(report, indent=2))
     return
 
-    return 0
-
 
 def preflight(args):
     from ccrr.runtime.preflight import inspect
@@ -54,8 +52,6 @@ def preflight(args):
     write_json(Path(cfg["output"]) / "preflight.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["ready_for_teacher_training"] else 2
-
-    return 0
 
 
 def train(args):

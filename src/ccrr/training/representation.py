@@ -1,4 +1,4 @@
-"""Stages C–E: continuous, quantized and privacy-aware INN optimization."""
+"""Stages C–E: quantized recovery, representation and multirate INN optimization."""
 
 import numpy as np
 from ccrr.data.pad import rng_for

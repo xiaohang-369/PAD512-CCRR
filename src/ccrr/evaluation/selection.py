@@ -1,6 +1,7 @@
+"""Validation of recovery and semantic utility during C–E selection."""
+
 from ccrr.codec.quantization import dequantize_latent
 
-"""Validation of recovery and semantic utility during C–E selection."""
 
 from ccrr.codec.quantization import quantize_latent
 

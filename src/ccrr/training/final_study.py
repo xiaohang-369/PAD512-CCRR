@@ -1,6 +1,7 @@
+"""Independent evaluation on a frozen system, including adaptive source attacks."""
+
 from ccrr.codec.quantization import quantize_latent, dequantize_latent
 
-"""Independent evaluation on a frozen system, including adaptive source attacks."""
 
 from ccrr.evaluation import attack_scoring
 from ccrr.training.teachers import initialize_base
@@ -363,7 +364,6 @@ class FinalStudy:
             pairs.append((a, b, 0, "p3-negative"))
         return pairs
 
-    @torch.no_grad()
     def reconstruction_attack(self, latent=False, with_metadata=False):
         e = self.e
         model = ReconstructionAttack(latent, with_metadata).to(e.device)
@@ -433,8 +433,6 @@ class FinalStudy:
         write_json(self.root / "attacks" / f"reconstruction-{name}.json", result)
         return result
 
-    @torch.no_grad()
-    @torch.no_grad()
     def attributes(self):
         """Auxiliary age/gender models: image, public fields, and their combination."""
         from ccrr.training.attribute_study import AttributeStudy

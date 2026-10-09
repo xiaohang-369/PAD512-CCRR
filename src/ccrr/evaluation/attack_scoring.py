@@ -16,6 +16,7 @@ from ccrr.communication.records import logits_to_records, reassemble
 from ccrr.codec.metadata import FIELDS
 
 
+@torch.no_grad()
 def source_matching(study, model, role, representation="public", structure=None):
     e = study.e
     ds = e.data[role]
@@ -97,6 +98,7 @@ def source_matching(study, model, role, representation="public", structure=None)
     return outputs
 
 
+@torch.no_grad()
 def reconstruction_scores(study, model, role, latent=False, with_metadata=False):
     e = study.e
     model.eval()
@@ -126,6 +128,7 @@ def reconstruction_scores(study, model, role, latent=False, with_metadata=False)
     return rows
 
 
+@torch.no_grad()
 def public_side_features(study, g):
     records, errors = logits_to_records(
         study.system.comm.read(g)[0], study.e.profile.occupancy_threshold
