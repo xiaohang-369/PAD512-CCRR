@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from ccrr.tensor_ops import pack, unpack
-from ccrr.errors import require, Status
+from ccrr.errors import CCRRError, require, Status
 from ccrr.codec import rans
 
 SOURCE = struct.Struct("<4sBBHII32s")
@@ -82,6 +82,13 @@ class EntropyModel(nn.Module):
         return np.stack(tables)
 
 
+class QuantizationRangeError(CCRRError):
+    """Only finite, correctly shaped symbols outside §9.3's range qualify."""
+
+    def __init__(self, level):
+        super().__init__(Status.INPUT, f"Latent out of range at level {level}")
+
+
 class SourceCodec:
     def __init__(self, profile, digest, cdfs):
         self.profile, self.digest = profile, digest
@@ -92,14 +99,19 @@ class SourceCodec:
         self.indexes = np.repeat(np.arange(128), (profile.size // 8) ** 2).tolist()
 
     def quantize(self, z, level):
-        n = quantize_latent(z, self.profile.step(level))
         require(
-            torch.isfinite(n).all() and n.abs().max() <= self.profile.symbol_bound,
-            "Latent out of range",
+            tuple(z.shape) == (1, 2, self.profile.size, self.profile.size),
+            "Source latent shape",
         )
+        require(torch.isfinite(z).all(), "Nonfinite latent", Status.NUMERICAL)
+        n = quantize_latent(z, self.profile.step(level))
+        require(torch.isfinite(n).all(), "Nonfinite quantized latent", Status.NUMERICAL)
+        if n.abs().max() > self.profile.symbol_bound:
+            raise QuantizationRangeError(level)
         return n
 
     def encode(self, n, level):
+        require(level in self.profile.legal_levels, "Unsupported quantization level")
         require(
             tuple(n.shape) == (1, 2, self.profile.size, self.profile.size),
             "Source latent shape",

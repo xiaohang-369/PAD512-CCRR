@@ -10,7 +10,7 @@ from ccrr.representation.inn import INN
 from ccrr.communication.network import Communication
 from ccrr.representation.inn import FixedGrayDecomposition
 from ccrr.tensor_ops import q8, public_adapter
-from ccrr.codec.entropy import EntropyModel, SourceCodec
+from ccrr.codec.entropy import EntropyModel, SourceCodec, QuantizationRangeError
 from ccrr.codec import metadata
 from ccrr.codec.crypto import seal, open_stream
 from ccrr.communication.records import (
@@ -75,7 +75,13 @@ class CCRR(nn.Module):
         mr = split_stream(m, 1, 0)
         failures = []
         for level in level_order or self.profile.quality_order:
-            n = self.codec.quantize(z, level)
+            try:
+                n = self.codec.quantize(z, level)
+            except QuantizationRangeError as exc:
+                failures.append(
+                    {"level": level, "reason": "symbol_range", "detail": exc.detail}
+                )
+                continue
             plain = self.codec.encode(n, level)
             required = (len(plain) + 88 + 15) // 16 + len(mr)
             if len(plain) + 88 > 16384 or required > int(np.asarray(budgets).sum()):
