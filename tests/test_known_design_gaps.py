@@ -1,10 +1,5 @@
-"""Executable design conflicts left unchanged by the structural refactor.
+"""D01/D03/D04 regressions, promoted from strict xfail after correctness repair."""
 
-Strict XFAILs are unresolved failures, not protocol acceptance. Each identifier
-is tracked in docs/03_完整验证报告.md. An XPASS requires review of the design gap.
-"""
-
-import pytest
 import torch
 from ccrr.communication.records import split_stream, logits_to_records
 from ccrr.errors import CCRRError
@@ -51,7 +46,6 @@ def test_weighted_clinical_loss_is_invariant_to_microbatch_partition():
     assert torch.allclose(accumulated, whole)
 
 
-@pytest.mark.xfail(strict=True, reason="D04: design 8.5 JS is divided by ln(2)")
 def test_clinical_risk_js_uses_design_unit_interval():
     a = torch.tensor([[100.0, -100.0]])
     b = torch.tensor([[-100.0, 100.0]])

@@ -111,9 +111,20 @@ def clinical_loss(
 
 
 def js_divergence(a, b):
-    pa, pb = a.softmax(-1), b.softmax(-1)
-    m = (pa + pb) / 2
-    return 0.5 * (
-        (pa * (pa.clamp_min(1e-12).log() - m.clamp_min(1e-12).log())).sum(-1)
-        + (pb * (pb.clamp_min(1e-12).log() - m.clamp_min(1e-12).log())).sum(-1)
-    )
+    """§8.5 normalized JS of logits, in bits (range [0, 1]).
+
+    Log-space mixture avoids probability floors. Zero-probability terms are
+    exactly zero, including when callers represent them by -inf logits.
+    """
+    la, lb = a.log_softmax(-1), b.log_softmax(-1)
+    za, zb = la.isneginf(), lb.isneginf()
+    absent = za & zb
+    lm = torch.logaddexp(
+        la.masked_fill(absent, 0), lb.masked_fill(absent, 0)
+    ) - math.log(2)
+    value = (
+        (la.exp() * (la.masked_fill(za, 0) - lm)).sum(-1)
+        + (lb.exp() * (lb.masked_fill(zb, 0) - lm)).sum(-1)
+    ) / (2 * math.log(2))
+    # Only roundoff can leave the mathematical range; thresholds are unchanged.
+    return value.clamp(0, 1)
