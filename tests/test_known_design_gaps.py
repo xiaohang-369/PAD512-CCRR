@@ -30,9 +30,6 @@ def test_receiver_rejects_occupancy_hole():
     assert errors[0] or errors[1] or not records
 
 
-@pytest.mark.xfail(
-    strict=True, reason="D03: design 26.2 requires effective-batch weighted CE"
-)
 def test_weighted_clinical_loss_is_invariant_to_microbatch_partition():
     logits = torch.tensor([[3.0, 0.0], [3.0, 0.0]])
     labels = torch.tensor([0, 1])
@@ -41,7 +38,11 @@ def test_weighted_clinical_loss_is_invariant_to_microbatch_partition():
     accumulated = (
         sum(
             clinical_loss(
-                logits[i : i + 1], logits[i : i + 1], labels[i : i + 1], weights
+                logits[i : i + 1],
+                logits[i : i + 1],
+                labels[i : i + 1],
+                weights,
+                effective_weight_mean=weights[labels].mean(),
             )
             for i in range(2)
         )

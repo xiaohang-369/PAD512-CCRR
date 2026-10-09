@@ -78,8 +78,30 @@ def message_loss(logits, bits, occ):
     return sum(out.values()), out
 
 
-def clinical_loss(logits, target_logits, labels, weights):
-    task = F.cross_entropy(logits, labels, weight=weights)
+def weighted_cross_entropy(logits, labels, weights, *, weight_sum=None):
+    """§26.2: summed weighted CE / weight sum of the entire effective batch.
+
+    With an explicit denominator this returns a microbatch *contribution*;
+    sum contributions without another division. Omitting it means full batch.
+    """
+    if weight_sum is None:
+        weight_sum = weights[labels].sum()
+    return F.cross_entropy(logits, labels, weight=weights, reduction="sum") / weight_sum
+
+
+def clinical_loss(
+    logits, target_logits, labels, weights, *, effective_weight_mean=None
+):
+    """Microbatch mean, accumulated with microbatch_size / effective_batch_size.
+
+    Pass the effective batch's mean class weight before any forward/backward.
+    CE then has one global denominator; KD remains an unweighted sample mean.
+    The default is appropriate only when this call contains the full batch.
+    """
+    weight_sum = (
+        None if effective_weight_mean is None else len(labels) * effective_weight_mean
+    )
+    task = weighted_cross_entropy(logits, labels, weights, weight_sum=weight_sum)
     kd = F.kl_div(
         F.log_softmax(logits, 1),
         target_logits.detach().softmax(1),

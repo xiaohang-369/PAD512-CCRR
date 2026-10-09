@@ -12,6 +12,7 @@ from ccrr.teachers.adapters import (
 from ccrr.tensor_ops import gray, pooled
 from ccrr.representation.supervision import TeacherSupervision, align
 from ccrr.tensor_ops import masked_mean
+from ccrr.training.losses import weighted_cross_entropy
 from ccrr.runtime.support import write_json
 from ccrr.training.optimization import optimizer, schedule, update
 from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
@@ -106,15 +107,11 @@ def stage_b(experiment):
                 ).mean()
                 loss = loss + (all_loss + 0.1 * id_loss + 10 * mask_loss) / 32
             for out in (px, py, cross):
-                loss = (
-                    loss
-                    + F.cross_entropy(
-                        out["logits"],
-                        b["label"],
-                        weight=experiment.weights,
-                        reduction="sum",
-                    )
-                    / denom
+                loss = loss + weighted_cross_entropy(
+                    out["logits"],
+                    b["label"],
+                    experiment.weights,
+                    weight_sum=denom,
                 )
             loss.backward()
         ramp = max(0, min(1, (step - 999) / 1000))

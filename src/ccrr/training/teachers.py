@@ -17,6 +17,7 @@ from ccrr.teachers.adapters import (
 from ccrr.tensor_ops import gray, pooled
 from ccrr.training.losses import (
     contrastive,
+    weighted_cross_entropy,
 )
 from ccrr.runtime.support import write_json
 from ccrr.training.optimization import optimizer, schedule, update
@@ -111,14 +112,11 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
                         (x.shape[-1] - left - width, top, width, height)
                         for left, top, width, height in rects
                     ]
-                loss = (
-                    F.cross_entropy(
-                        model(x, rects),
-                        b["label"],
-                        weight=experiment.weights,
-                        reduction="sum",
-                    )
-                    / denom
+                loss = weighted_cross_entropy(
+                    model(x, rects),
+                    b["label"],
+                    experiment.weights,
+                    weight_sum=denom,
                 )
                 loss.backward()
                 total += float(loss.detach())
@@ -252,10 +250,9 @@ def train_mfm_probe(experiment):
                     f, v, _ = experiment.mfm(x, b["rect"])
                     h = pooled(f, v)
                 (
-                    F.cross_entropy(
-                        head(h), b["label"], weight=experiment.weights, reduction="sum"
+                    weighted_cross_entropy(
+                        head(h), b["label"], experiment.weights, weight_sum=denom
                     )
-                    / denom
                 ).backward()
         schedule(opt, step, total)
         update(opt)

@@ -102,10 +102,14 @@ class TeacherSupervision:
             "id_weights": heat_weights(ih[:, 0], ia).detach(),
         }
 
-    def loss(self, g, rects, labels, targets):
+    def loss(self, g, rects, labels, targets, *, effective_weight_mean=None):
         logits = self.clinical(g, rects)
         clin = clinical_loss(
-            logits, targets["logits"], labels, self.class_weights.to(g)
+            logits,
+            targets["logits"],
+            labels,
+            self.class_weights.to(g),
+            effective_weight_mean=effective_weight_mean,
         )
         local = g.sum() * 0
         identity = g.sum() * 0

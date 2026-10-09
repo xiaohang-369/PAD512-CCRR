@@ -13,6 +13,7 @@ from ccrr.teachers.adapters import (
 from ccrr.representation.purifier import Purifier, SemanticAttacker
 from ccrr.runtime.system import CCRR
 from ccrr.codec.crypto import NonceAllocator
+from ccrr.codec.metadata import CLASSES
 from ccrr.runtime.support import seed_everything, environment, write_json, log_json
 from ccrr.errors import require
 
@@ -84,6 +85,15 @@ class Experiment:
         return collate(
             [self.fit[int(i)] for i in rng.integers(len(self.fit), size=n)], self.device
         )
+
+    def class_weight_mean(self, indices):
+        """Full effective cohort, including repeated draws; no image decoding."""
+        labels = torch.tensor(
+            [CLASSES.index(self.fit.rows[int(i)]["diagnostic"]) for i in indices],
+            device=self.weights.device,
+        )
+        require(labels.numel() > 0, "Empty clinical effective batch")
+        return self.weights[labels].mean()
 
     def log(self, stage, step, values):
         log_json(

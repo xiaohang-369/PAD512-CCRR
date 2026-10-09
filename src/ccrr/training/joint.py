@@ -130,6 +130,9 @@ def _prepare_joint_batch(experiment, chosen, rng):
 
 def _accumulate_message_gradients(experiment, feasible):
     values = []
+    if not feasible:
+        return values
+    weight_mean = experiment.class_weight_mean([i for i, _ in feasible])
     for i, cached in feasible:
         b = collate([experiment.fit[i]], experiment.device)
         u, z, g, n, zq = experiment.system.quantized(b["x"], cached["level"])
@@ -145,7 +148,11 @@ def _accumulate_message_gradients(experiment, feasible):
         rec = experiment.system.recover(public, zq)
         target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
         clin, ident, _ = experiment.supervision.loss(
-            public, b["rect"], b["label"], target
+            public,
+            b["rect"],
+            b["label"],
+            target,
+            effective_weight_mean=weight_mean,
         )
         loss = (
             dec
@@ -160,12 +167,15 @@ def _accumulate_message_gradients(experiment, feasible):
 
 
 def _accumulate_representation_gradients(experiment, chosen, rng):
+    weight_mean = experiment.class_weight_mean(chosen)
     for i in chosen:
         b = collate([experiment.fit[int(i)]], experiment.device)
         r = int(rng.integers(1, 4))
         u, z, g, n, zq = experiment.system.quantized(b["x"], r)
         target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
-        clin, ident, _ = experiment.supervision.loss(g, b["rect"], b["label"], target)
+        clin, ident, _ = experiment.supervision.loss(
+            g, b["rect"], b["label"], target, effective_weight_mean=weight_mean
+        )
         loss = (
             reconstruction(b["x"], experiment.system.recover(g, zq), b["v"])
             + 0.1 * gray_loss(g, b["x"], b["v"])

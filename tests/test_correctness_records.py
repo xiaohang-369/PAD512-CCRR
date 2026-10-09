@@ -30,7 +30,9 @@ def test_all_occupancy_patterns(pattern, alpha):
     hole = any(pattern[prefix:])
     assert bool(errors[alpha]) == hole
     assert not errors[1 - alpha]
-    assert records == source[:prefix]  # Never compress holes or infer an empty row's type.
+    assert (
+        records == source[:prefix]
+    )  # Never compress holes or infer an empty row's type.
 
 
 @pytest.mark.parametrize("affected", (0, 1))

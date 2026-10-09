@@ -1,7 +1,7 @@
 """Stages C–E: quantized recovery, representation and multirate INN optimization."""
 
 import numpy as np
-from ccrr.data.pad import rng_for
+from ccrr.data.pad import collate, rng_for
 from ccrr.training.losses import (
     reconstruction,
     gray_loss,
@@ -51,8 +51,12 @@ def train_representation(experiment, stage):
         opt.zero_grad(set_to_none=True)
         loss_values = []
         level = int(rng.integers(1, 4)) if stage == "E" else 1
-        for _ in range(experiment.cfg.get("batch_images", 8)):
-            b = experiment.batch(rng)
+        chosen = rng.integers(
+            len(experiment.fit), size=experiment.cfg.get("batch_images", 8)
+        )
+        weight_mean = experiment.class_weight_mean(chosen) if stage != "C" else None
+        for i in chosen:
+            b = collate([experiment.fit[int(i)]], experiment.device)
             u, z, g, n, zq = experiment.system.quantized(b["x"], level)
             rec = experiment.system.recover(g, zq)
             loss = (
@@ -63,7 +67,11 @@ def train_representation(experiment, stage):
             if stage != "C":
                 target = experiment.supervision.targets(b["x"], b["rect"], b["label"])
                 clin, ident, _ = experiment.supervision.loss(
-                    g, b["rect"], b["label"], target
+                    g,
+                    b["rect"],
+                    b["label"],
+                    target,
+                    effective_weight_mean=weight_mean,
                 )
                 rate = experiment.system.entropy.rate(
                     z, level, experiment.profile.step(level)
