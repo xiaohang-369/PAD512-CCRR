@@ -5,19 +5,31 @@ from torch.nn import functional as F
 from ccrr.tensor_ops import ResBlock, ste_round, pooled, init_comm
 
 
-class MaskedNet(nn.Module):
-    def __init__(self, cin, cout):
+class MaskedEncoder(nn.Module):
+    """§7.2/7.5: 1x1 projection and exactly two masked ResBlocks."""
+
+    def __init__(self, cin):
         super().__init__()
         self.start = nn.Conv2d(cin, 128, 1)
         self.blocks = nn.ModuleList([ResBlock(128), ResBlock(128)])
-        self.end = nn.Conv2d(128, cout, 1)
 
     def forward(self, x, v):
         m = (v > 0).to(x)
         x = self.start(x) * m
         for block in self.blocks:
             x = block(x, v)
-        return self.end(x) * m
+        return x
+
+
+class MaskedNet(MaskedEncoder):
+    """Es/Ds alone require the final feature-channel projection."""
+
+    def __init__(self, cin, cout):
+        super().__init__(cin)
+        self.end = nn.Conv2d(128, cout, 1)
+
+    def forward(self, x, v):
+        return self.end(super().forward(x, v)) * (v > 0).to(x)
 
 
 class Purifier(nn.Module):
@@ -26,7 +38,7 @@ class Purifier(nn.Module):
         self.encoder = MaskedNet(768, 64)
         self.decoder = MaskedNet(64, 768)
         self.mask_head = nn.Conv2d(64, 64, 3, padding=1)
-        self.identity = MaskedNet(64, 128)
+        self.identity = MaskedEncoder(64)
         self.id_head = nn.Linear(128, 2048)
         self.clinical = nn.Linear(768, 6)
         self.register_buffer("mean", torch.zeros(1, 768, 1, 1))
@@ -62,7 +74,7 @@ class Purifier(nn.Module):
 class SemanticAttacker(nn.Module):
     def __init__(self):
         super().__init__()
-        self.net = MaskedNet(768, 128)
+        self.net = MaskedEncoder(768)
         self.embed = nn.Sequential(nn.Linear(640, 256), nn.GELU())
         self.pair = SymmetricHead()
 
