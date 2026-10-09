@@ -159,6 +159,9 @@ def logits_to_records(logits, threshold):
     """No sender table, geometry mask, budgets or keys are accepted here.
 
     Errors are attributed per decoded type, preserving the other capability.
+    After the first empty row, an active row is rejected and its decoded type
+    receives a structural error. Empty-row fields are never used for attribution.
+    The valid prefix remains usable by an independently complete other stream.
     """
     x = logits.detach().cpu()
     require(
@@ -172,14 +175,19 @@ def logits_to_records(logits, threshold):
     result = []
     errors = {0: [], 1: []}
     for region in x:
+        ended = False
         for row in region:
             if row[0].sigmoid().item() < threshold:
+                ended = True
                 continue
             v, a, r = (
                 row[1:5].argmax().item(),
                 row[5:7].argmax().item(),
                 row[7:11].argmax().item(),
             )
+            if ended:
+                errors[a].append("Occupancy hole: active row after empty row")
+                continue
             b = (
                 int_bits(v, 2)
                 + int_bits(a, 1)

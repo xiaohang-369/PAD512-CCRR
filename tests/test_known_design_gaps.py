@@ -11,7 +11,6 @@ from ccrr.errors import CCRRError
 from ccrr.training.losses import clinical_loss, js_divergence
 
 
-@pytest.mark.xfail(strict=True, reason="D01: design 22.3 forbids occupancy holes")
 def test_receiver_rejects_occupancy_hole():
     record = split_stream(bytes(16), 0, 1)[0]
     bits = torch.tensor(record.bits())
