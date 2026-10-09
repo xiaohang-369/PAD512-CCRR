@@ -4,11 +4,11 @@ import concurrent.futures
 import numpy as np
 import pytest
 from ccrr.errors import CCRRError, Status
-from ccrr.metadata import FIELDS, serialize, deserialize
-from ccrr.crypto import NonceAllocator, seal, open_stream, aad
-from ccrr.records import Record, split_stream, reassemble, route
-from ccrr.entropy import EntropyModel
-from ccrr import rans
+from ccrr.codec.metadata import FIELDS, serialize, deserialize
+from ccrr.codec.crypto import NonceAllocator, seal, open_stream, aad
+from ccrr.communication.records import Record, split_stream, reassemble, route
+from ccrr.codec.entropy import EntropyModel
+from ccrr.codec import rans
 
 
 def row():

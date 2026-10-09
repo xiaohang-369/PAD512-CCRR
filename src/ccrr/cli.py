@@ -4,12 +4,12 @@ import json
 import sys
 import numpy as np
 import torch
-from .config import Profile, load_config, load_manifest, sha256, export_manifest
-from .runtime import environment, write_json, json_safe
-from .system import CCRR, load_public, save_public
-from .crypto import NonceAllocator, Credential
-from .data import preprocess
-from .errors import CCRRError, require
+from ccrr.config import Profile, load_config, load_manifest, sha256, export_manifest
+from ccrr.runtime.support import environment, write_json, json_safe
+from ccrr.runtime.system import CCRR, load_public, save_public
+from ccrr.codec.crypto import NonceAllocator, Credential
+from ccrr.data.pad import preprocess
+from ccrr.errors import CCRRError, require
 
 
 def load_system(manifest, device):
@@ -89,7 +89,7 @@ def main(argv=None):
             print(json.dumps(report, indent=2))
             return
         if args.command == "preflight":
-            from .preflight import inspect
+            from ccrr.runtime.preflight import inspect
 
             cfg = load_config(args.config)
             report = inspect(cfg)
@@ -97,13 +97,13 @@ def main(argv=None):
             print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0 if report["ready_for_teacher_training"] else 2
         elif args.command == "train":
-            from .training import Experiment
+            from ccrr.training.legacy import Experiment
 
             e = Experiment(load_config(args.config))
             e.run(args.stage)
         elif args.command == "audit-data":
-            from .data import PADData
-            from .metadata import serialize, deserialize
+            from ccrr.data.pad import PADData
+            from ccrr.codec.metadata import serialize, deserialize
 
             report = {}
             for role in ("fit", "calibration", "val_tune", "val_select", "test"):
@@ -176,9 +176,9 @@ def main(argv=None):
             write_json(out / "status.json", summary)
             print(json.dumps(json_safe(summary), ensure_ascii=False, indent=2))
         elif args.command == "send":
-            from .models.teachers import ClinicalModel, freeze
-            from .runtime import load_checkpoint
-            from .calibration import clinical_risk
+            from ccrr.teachers.adapters import ClinicalModel, freeze
+            from ccrr.runtime.support import load_checkpoint
+            from ccrr.calibration.probes import clinical_risk
 
             system, obj = load_system(args.manifest, args.device)
             teacher = ClinicalModel().to(args.device)
@@ -230,7 +230,7 @@ def main(argv=None):
             finally:
                 allocator.close()
         elif args.command == "smoke":
-            from .smoke import run
+            from ccrr.runtime.smoke import run
 
             run(args.out, args.size)
     except (CCRRError, FileNotFoundError, ValueError) as exc:

@@ -7,15 +7,15 @@ import numpy as np
 import pytest
 import torch
 from ccrr.config import Profile, export_manifest, load_manifest, sha256
-from ccrr.system import CCRR, save_public, load_public
-from ccrr.crypto import NonceAllocator, seal
-from ccrr.records import split_stream
-from ccrr.metadata import serialize, FIELDS
+from ccrr.runtime.system import CCRR, save_public, load_public
+from ccrr.codec.crypto import NonceAllocator, seal
+from ccrr.communication.records import split_stream
+from ccrr.codec.metadata import serialize, FIELDS
 from ccrr.errors import Status, CCRRError
-from ccrr.entropy import EntropyModel
-from ccrr import rans
-from ccrr.metrics import failure_funnel, quality
-from ccrr.calibration import labels, wilson
+from ccrr.codec.entropy import EntropyModel
+from ccrr.codec import rans
+from ccrr.evaluation.metrics import failure_funnel, quality
+from ccrr.calibration.probes import labels, wilson
 from ccrr.cli import main
 
 
@@ -209,15 +209,15 @@ def test_all_modules_import_and_cli_inspection():
     import importlib
 
     for name in (
-        "training",
-        "final_study",
-        "feature_audit",
-        "attribute_study",
-        "optional_metrics",
-        "robustness",
-        "external",
-        "routing_validation",
-        "structural_attacks",
+        "training.legacy",
+        "training.final_study",
+        "training.feature_audit",
+        "training.attribute_study",
+        "evaluation.optional_metrics",
+        "evaluation.robustness",
+        "data.external",
+        "calibration.routing",
+        "evaluation.structural_attacks",
     ):
         assert importlib.import_module("ccrr." + name)
     assert main(["inspect"]) is None

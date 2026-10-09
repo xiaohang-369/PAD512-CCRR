@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib
 import json
 import yaml
-from .errors import require
+from ccrr.errors import require
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,13 @@
 import torch
 import numpy as np
-from ccrr.models import INN, Communication, Purifier
-from ccrr.models.common import pack, unpack, haar, ihaar
-from ccrr.records import split_stream, route
-from ccrr.losses import message_loss
-from ccrr.models.teachers import ClinicalModel, freeze
-from ccrr.supervision import align
+from ccrr.representation.inn import INN
+from ccrr.communication.network import Communication
+from ccrr.representation.purifier import Purifier
+from ccrr.tensor_ops import pack, unpack, haar, ihaar
+from ccrr.communication.records import split_stream, route
+from ccrr.training.losses import message_loss
+from ccrr.teachers.adapters import ClinicalModel, freeze
+from ccrr.representation.supervision import align
 
 torch.set_num_threads(2)
 

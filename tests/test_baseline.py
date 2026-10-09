@@ -1,5 +1,5 @@
 import torch
-from ccrr.models.inn import FixedGrayDecomposition
+from ccrr.representation.inn import FixedGrayDecomposition
 
 
 def test_fixed_gray_baseline_continuous_inverse():

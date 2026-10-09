@@ -1,15 +1,22 @@
 import torch
 import numpy as np
-from ccrr.models import INN, Purifier
-from ccrr.models.purifier import SemanticAttacker
-from ccrr.models.attacks import ReconstructionAttack
-from ccrr.entropy import EntropyModel
-from ccrr.losses import reconstruction, saturation, gray_loss
-from ccrr.models.common import q8, ste_round, public_adapter
-from ccrr.runtime import optimizer, schedule, update, save_checkpoint, load_checkpoint
-from ccrr.data import PairSampler
-from ccrr.gates import deployment_gate
-from ccrr.preflight import inspect
+from ccrr.representation.inn import INN
+from ccrr.representation.purifier import Purifier
+from ccrr.representation.purifier import SemanticAttacker
+from ccrr.evaluation.attacks import ReconstructionAttack
+from ccrr.codec.entropy import EntropyModel
+from ccrr.training.losses import reconstruction, saturation, gray_loss
+from ccrr.tensor_ops import q8, ste_round, public_adapter
+from ccrr.runtime.support import (
+    optimizer,
+    schedule,
+    update,
+    save_checkpoint,
+    load_checkpoint,
+)
+from ccrr.data.pad import PairSampler
+from ccrr.evaluation.gates import deployment_gate
+from ccrr.runtime.preflight import inspect
 
 
 def test_representation_training_update_and_resume(tmp_path):

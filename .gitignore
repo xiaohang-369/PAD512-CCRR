@@ -8,3 +8,6 @@ __pycache__/
 *.ckpt
 *.sqlite*
 *.key
+
+.DS_Store
+.ruff_cache/
