@@ -1,0 +1,67 @@
+FF.F                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_exact_identity_and_semantic_attacker_structure ______________
+
+    def test_exact_identity_and_semantic_attacker_structure():
+        p, a = Purifier(), SemanticAttacker()
+        for net, channels in ((p.identity, 64), (a.net, 768)):
+>           assert list(net._modules) == ["start", "blocks"]
+E           AssertionError: assert ['start', 'blocks', 'end'] == ['start', 'blocks']
+E             
+E             Left contains one more item: 'end'
+E             Use -v to get more diff
+
+tests/test_correctness_purifier.py:14: AssertionError
+________ test_forward_matches_design_and_all_purifier_branch_gradients _________
+
+    def test_forward_matches_design_and_all_purifier_branch_gradients():
+        torch.manual_seed(55)
+        p = Purifier()
+        features = torch.randn(2, 768, 14, 14, requires_grad=True)
+        v = torch.ones(2, 1, 14, 14)
+        v[..., :2, :] = 0
+        v[..., 2, :] = 0.5
+        out = p(features, v)
+        assert out["q"].shape == (2, 64, 14, 14)
+        assert out["semantic"].shape == (2, 768, 14, 14)
+        assert out["identity"].shape == (2, 2048)
+        assert out["logits"].shape == (2, 6)
+        mask = (v > 0).float()
+        h = p.identity.start(out["mask"] * out["q"] / 7) * mask
+        for block in p.identity.blocks:
+            h = block(h, v)
+        expected = F.normalize(p.id_head(pooled(h, v)), dim=1, eps=1e-6)
+>       torch.testing.assert_close(out["identity"], expected)
+E       AssertionError: Tensor-likes are not close!
+E       
+E       Mismatched elements: 4095 / 4096 (100.0%)
+E       Greatest absolute difference: 0.1287180334329605 at index (0, 439) (up to 1e-05 allowed)
+E       Greatest relative difference: 1760.27099609375 at index (0, 1796) (up to 1.3e-06 allowed)
+
+tests/test_correctness_purifier.py:46: AssertionError
+_____ test_corrected_checkpoint_roundtrip_and_wrong_old_structure_rejected _____
+
+tmp_path = PosixPath('/private/var/folders/kn/0lt0hz_12w9698gx2y5l2h700000gn/T/pytest-of-zhuyanghang/pytest-77/test_corrected_checkpoint_roun0')
+
+    def test_corrected_checkpoint_roundtrip_and_wrong_old_structure_rejected(tmp_path):
+        p, a = Purifier(), SemanticAttacker()
+        path = tmp_path / "correct.pt"
+        save_checkpoint(path, {"purifier": p, "attacker": a}, None, 0, "B", {})
+        p2, a2 = Purifier(), SemanticAttacker()
+        load_checkpoint(path, {"purifier": p2, "attacker": a2})
+        for before, after in ((p, p2), (a, a2)):
+            for key, value in before.state_dict().items():
+                assert torch.equal(value, after.state_dict()[key])
+        for model, prefix in ((p2, "identity"), (a2, "net")):
+            wrong = copy.deepcopy(model.state_dict())
+            wrong[prefix + ".end.weight"] = torch.empty(128, 128, 1, 1)
+            wrong[prefix + ".end.bias"] = torch.empty(128)
+>           with pytest.raises(RuntimeError, match="Unexpected key"):
+E           Failed: DID NOT RAISE <class 'RuntimeError'>
+
+tests/test_correctness_purifier.py:93: Failed
+=========================== short test summary info ============================
+FAILED tests/test_correctness_purifier.py::test_exact_identity_and_semantic_attacker_structure
+FAILED tests/test_correctness_purifier.py::test_forward_matches_design_and_all_purifier_branch_gradients
+FAILED tests/test_correctness_purifier.py::test_corrected_checkpoint_roundtrip_and_wrong_old_structure_rejected
+3 failed, 1 passed in 0.59s

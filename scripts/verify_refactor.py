@@ -114,12 +114,13 @@ def main():
             for key in ("tests", "failures", "errors", "skipped")
         },
         "engineering_checks_matched_expected": all(c["matched"] for c in checks),
-        "expected_design_failures": ["D01", "D03", "D04"],
+        "expected_design_failures": [],
+        "repaired_design_regressions": ["D01", "D03", "D04", "D11", "D12"],
         "complete_training_passed": False,
         "scientific_targets_validated": False,
         "real_teacher_weights_validated": False,
         "H100_validated": False,
-        "note": "JUnit skipped includes strict expected failures; consult tests.log. Dispatch call recording is not training evidence.",
+        "note": "D01/D03/D04 are required regressions, not xfails. Analytical stage fixtures and dispatch checks are not teacher or training acceptance evidence.",
     }
     (out / "verification_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n"

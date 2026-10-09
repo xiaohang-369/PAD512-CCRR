@@ -66,3 +66,14 @@ def test_mixed_post_hole_types_fail_both_without_reading_empty_fields():
     logits[0, 1], logits[0, 2] = row_logits(c), row_logits(m)
     records, errors = logits_to_records(logits, 0.5)
     assert not records and errors[0] and errors[1]
+
+
+@pytest.mark.parametrize("prefix_alpha", (0, 1))
+def test_other_capability_in_same_regions_valid_prefix_is_preserved(prefix_alpha):
+    prefix = split_stream(bytes(16), prefix_alpha, 1 - prefix_alpha)[0]
+    suffix = split_stream(bytes(16), 1 - prefix_alpha, prefix_alpha)[0]
+    logits = torch.full((1, 4, 177), -20.0)
+    logits[0, 0], logits[0, 2] = row_logits(prefix), row_logits(suffix)
+    records, errors = logits_to_records(logits, 0.5)
+    assert records == [prefix]
+    assert not errors[prefix_alpha] and errors[1 - prefix_alpha]

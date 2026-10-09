@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_weighted_clinical_loss_is_invariant_to_microbatch_partition _______
+
+    @pytest.mark.xfail(
+        strict=True, reason="D03: design 26.2 requires effective-batch weighted CE"
+    )
+    def test_weighted_clinical_loss_is_invariant_to_microbatch_partition():
+        logits = torch.tensor([[3.0, 0.0], [3.0, 0.0]])
+        labels = torch.tensor([0, 1])
+        weights = torch.tensor([1.0, 4.0])
+        whole = clinical_loss(logits, logits, labels, weights)
+        accumulated = (
+            sum(
+                clinical_loss(
+                    logits[i : i + 1], logits[i : i + 1], labels[i : i + 1], weights
+                )
+                for i in range(2)
+            )
+            / 2
+        )
+>       assert torch.allclose(accumulated, whole)
+E       assert False
+E        +  where False = <built-in method allclose of type object at 0x10b4a4350>(tensor(1.5486), tensor(2.4486))
+E        +    where <built-in method allclose of type object at 0x10b4a4350> = torch.allclose
+
+tests/test_known_design_gaps.py:50: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_known_design_gaps.py::test_weighted_clinical_loss_is_invariant_to_microbatch_partition
+1 failed in 0.67s

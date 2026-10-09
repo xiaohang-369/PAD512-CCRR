@@ -4,7 +4,15 @@
 
 **恢复契约：RGB 高保真近似恢复；认证成功后，选定量化等级的整数 latent 与 PAD-M1 字段精确恢复。** 代码和数值检查不能代替训练结果。此目录没有训练后的模型，也没有任何临床有效性、身份隐私或神经通信成功率的证明。
 
-## 本轮架构审查与验证
+## 当前：第一批代码正确性修复
+
+在重构提交 `52665d5` 上建立独立分支 `fix/pad512-v1.1-correctness-batch1`，按最终稿修复 D01、D03、D04、D11、D12。最新完整工程验证为 **133 passed，0 failed，0 skipped，0 xfailed**（使用本机已有且核验摘要的原生编码参照）。原三个 strict xfail 已转为必须通过的回归测试。
+
+详见 [第一批代码正确性修复报告](docs/PAD512-CCRR-v1.1_第一批代码正确性修复报告.md) 和 `verification/correctness_batch1/`。D11 有意删除 D_id/A_sem 多余的末端卷积，旧错误结构的 checkpoint 不兼容；未修改 checkpoint 容器格式。其余审查问题尚未解决，工程通过不等于教师能力、完整训练或科学指标通过。
+
+复现本轮工程检查：`python scripts/verify_refactor.py --out verification/correctness_batch1`。原生参照为可选项，不提供时该互操作测试应跳过；不会自动下载。历史函数/参数等价性检查针对结构重构，本轮有意修正数学与网络行为，不能继续声称全部等价。
+
+## 历史：架构审查与验证
 
 本轮按最终设计稿进行了受控结构重构，工作分支为 `refactor/pad512-v1.1-architecture`，原始源码保存在 `baseline/original`（`b2e8187`）。原目录没有 Git，已先建立归档和基线再重构。
 

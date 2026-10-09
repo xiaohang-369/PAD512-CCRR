@@ -1,0 +1,57 @@
+{
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.6-arm64-arm-64bit",
+    "packages": {
+      "torch": "2.6.0",
+      "torchvision": "0.21.0",
+      "numpy": "2.2.6",
+      "Pillow": "11.3.0",
+      "cryptography": "44.0.3",
+      "timm": "0.9.16",
+      "scipy": "1.15.3",
+      "scikit-learn": "1.6.1",
+      "scikit-image": "0.25.2"
+    },
+    "cuda": null,
+    "devices": []
+  },
+  "weights": {
+    "convnext_tiny": {
+      "configured": false,
+      "exists": false,
+      "sha256_matches": false
+    },
+    "efficientnet_b0": {
+      "configured": false,
+      "exists": false,
+      "sha256_matches": false
+    },
+    "panderm": {
+      "configured": false,
+      "exists": false,
+      "sha256_matches": false
+    },
+    "resnet50": {
+      "configured": false,
+      "exists": false,
+      "sha256_matches": false
+    },
+    "swin_t": {
+      "configured": false,
+      "exists": false,
+      "sha256_matches": false
+    }
+  },
+  "ready_for_teacher_training": false,
+  "missing": [
+    "CUDA/H100 unavailable on this host",
+    "convnext_tiny verified base weights",
+    "efficientnet_b0 verified base weights",
+    "panderm verified base weights",
+    "PanDerm verified official source",
+    "resnet50 verified base weights",
+    "swin_t verified base weights"
+  ],
+  "formal_training_started": false
+}

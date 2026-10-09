@@ -1,0 +1,111 @@
+{
+  "base_commit": "52665d54a5591327377f96cfd0487417bd495894",
+  "source_fixes_commit": "5fedd6e050c5f23115b7c730883aa0446f1d3e9e",
+  "branch": "fix/pad512-v1.1-correctness-batch1",
+  "initial_tracked_and_untracked_changes_before_evidence_creation": [],
+  "start_status_note": "The saved status contains only this newly created evidence directory; initial tool inspection before its creation was clean.",
+  "design_sha256": "6319564fce9923f01d34f367e2e46ee20b9bf2dc90e0ae6a094f2863b9c5a549",
+  "design_unchanged": true,
+  "protected_files": {
+    "configs/pad512.yaml": {
+      "before": "2b139ada23c597b0ef8472f64637ac5dd3ff0a329728646494cbfb1a3993507e",
+      "after": "2b139ada23c597b0ef8472f64637ac5dd3ff0a329728646494cbfb1a3993507e",
+      "unchanged": true
+    },
+    "pyproject.toml": {
+      "before": "edf75d731b53fdf39ad2f5a0efa5a6266919b4de1be6d81f8cb7a9b96a7badb5",
+      "after": "edf75d731b53fdf39ad2f5a0efa5a6266919b4de1be6d81f8cb7a9b96a7badb5",
+      "unchanged": true
+    },
+    "requirements-local-macos.lock": {
+      "before": "e88f2c771abfc5f7af6bfe27bdd39cb74df855b128be60d714d05e1e12f02822",
+      "after": "e88f2c771abfc5f7af6bfe27bdd39cb74df855b128be60d714d05e1e12f02822",
+      "unchanged": true
+    },
+    "src/ccrr/config.py": {
+      "before": "9903bd20fce12bf57645a3d835e72f5c5c15a6351927b8cf19b239763c1ed727",
+      "after": "9903bd20fce12bf57645a3d835e72f5c5c15a6351927b8cf19b239763c1ed727",
+      "unchanged": true
+    },
+    "src/ccrr/data/pad.py": {
+      "before": "5fe24648df4f8bb5202a4ff498f4a115f808475783e2ba4b2de19fb5676904b2",
+      "after": "5fe24648df4f8bb5202a4ff498f4a115f808475783e2ba4b2de19fb5676904b2",
+      "unchanged": true
+    },
+    "src/ccrr/representation/inn.py": {
+      "before": "f5ed9e875446bb2db703c62c8b546048a70bd14a4efc5e3f258d4c5d5b320b67",
+      "after": "f5ed9e875446bb2db703c62c8b546048a70bd14a4efc5e3f258d4c5d5b320b67",
+      "unchanged": true
+    },
+    "src/ccrr/communication/network.py": {
+      "before": "80d6996eb74ae919efea1d561d9df4ac7392e71e3d07675b8aef929ec3f4e266",
+      "after": "80d6996eb74ae919efea1d561d9df4ac7392e71e3d07675b8aef929ec3f4e266",
+      "unchanged": true
+    },
+    "src/ccrr/codec/quantization.py": {
+      "before": "fd090b81c676eda4fb98b0bd3db65e1d1da8e4ba0a7932fea0b943fac4c57071",
+      "after": "fd090b81c676eda4fb98b0bd3db65e1d1da8e4ba0a7932fea0b943fac4c57071",
+      "unchanged": true
+    },
+    "src/ccrr/codec/rans.py": {
+      "before": "e7bd0b49a7d607592a7fe377fb35e9e8193174dbe37fecce68e266e12c41f7ad",
+      "after": "e7bd0b49a7d607592a7fe377fb35e9e8193174dbe37fecce68e266e12c41f7ad",
+      "unchanged": true
+    },
+    "src/ccrr/codec/metadata.py": {
+      "before": "ac0f206b087b8a899a6821a83c0c2c3842741693304b1706c33163d08dd8bfdf",
+      "after": "ac0f206b087b8a899a6821a83c0c2c3842741693304b1706c33163d08dd8bfdf",
+      "unchanged": true
+    },
+    "src/ccrr/codec/crypto.py": {
+      "before": "508ab052a76be2c383114aa5c6159687917c912bcf10874ed2fe463d86a306d5",
+      "after": "508ab052a76be2c383114aa5c6159687917c912bcf10874ed2fe463d86a306d5",
+      "unchanged": true
+    },
+    "src/ccrr/teachers/adapters.py": {
+      "before": "619ec15a2e17806010fdd8cde993a49393e0aeb0c48afd95ee82b11397b6d72b",
+      "after": "619ec15a2e17806010fdd8cde993a49393e0aeb0c48afd95ee82b11397b6d72b",
+      "unchanged": true
+    },
+    "src/ccrr/tensor_ops.py": {
+      "before": "ceaf020447e6b4625e173bc108a2bcec1315bd2a751d52a76df656ea96bcf305",
+      "after": "ceaf020447e6b4625e173bc108a2bcec1315bd2a751d52a76df656ea96bcf305",
+      "unchanged": true
+    },
+    "src/ccrr/runtime/checkpoints.py": {
+      "before": "db25882c4bf5fdab3c1bdec4c00f013c8e927b6979cadb27030a97959aa3a28a",
+      "after": "db25882c4bf5fdab3c1bdec4c00f013c8e927b6979cadb27030a97959aa3a28a",
+      "unchanged": true
+    },
+    "src/ccrr/training/optimization.py": {
+      "before": "c05559f79d1c7ca2b92770a31479330158eee7873037ca646a09115b0dfd8a70",
+      "after": "c05559f79d1c7ca2b92770a31479330158eee7873037ca646a09115b0dfd8a70",
+      "unchanged": true
+    },
+    "src/ccrr/training/adversarial.py": {
+      "before": "459f3f42dda31d42a511221c3d4d74f34d3c434ce03be187e0a794b163f9ca26",
+      "after": "459f3f42dda31d42a511221c3d4d74f34d3c434ce03be187e0a794b163f9ca26",
+      "unchanged": true
+    },
+    "src/ccrr/calibration/probes.py": {
+      "before": "2a85796a6aa2aa4ccf13faa32b4a483c75c80e7fe98464eae317cbfbcb4a4214",
+      "after": "2a85796a6aa2aa4ccf13faa32b4a483c75c80e7fe98464eae317cbfbcb4a4214",
+      "unchanged": true
+    },
+    "src/ccrr/calibration/workflow.py": {
+      "before": "d03a8a944a1c98e8694967a3c2f2d91829c4b77fade61c5b98534b4d7c4cc0fe",
+      "after": "d03a8a944a1c98e8694967a3c2f2d91829c4b77fade61c5b98534b4d7c4cc0fe",
+      "unchanged": true
+    },
+    "tests/fixtures/compressai_1_2_8_vectors.json": {
+      "before": "3058d46b0532ac6bb4835dd72a2fb3e28d5a31a19ad42e427b716e198a54888e",
+      "after": "3058d46b0532ac6bb4835dd72a2fb3e28d5a31a19ad42e427b716e198a54888e",
+      "unchanged": true
+    }
+  },
+  "ccrr_system_seed77_state_entries": 288,
+  "ccrr_system_seed77_state_exact": true,
+  "purifier_and_semantic_attacker_equivalence_claimed": false,
+  "downloads": false,
+  "formal_training_started": false
+}
