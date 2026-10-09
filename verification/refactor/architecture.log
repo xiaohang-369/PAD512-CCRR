@@ -1,0 +1,12 @@
+{
+  "before": {
+    "python_files": 39,
+    "source_lines": 7849,
+    "import_cycles_including_lazy": []
+  },
+  "after": {
+    "python_files": 62,
+    "source_lines": 8188,
+    "import_cycles_including_lazy": []
+  }
+}

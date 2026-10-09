@@ -1,0 +1,1416 @@
+{
+  "scope": "AST bodies normalized only for imports, documented function moves/context renaming, helper extraction and unchanged quantizer wrappers; not an execution proof",
+  "rows": [
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeModel.__init__",
+      "after": "src/ccrr/evaluation/attacks.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeModel.forward",
+      "after": "src/ccrr/evaluation/attacks.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.__init__",
+      "after": "src/ccrr/training/attribute_study.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.age",
+      "after": "src/ccrr/training/attribute_study.py:age",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.label",
+      "after": "src/ccrr/training/attribute_study.py:label",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.inputs",
+      "after": "src/ccrr/training/attribute_study.py:inputs",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.evaluate",
+      "after": "src/ccrr/training/attribute_study.py:evaluate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/attribute_study.py:AttributeStudy.run",
+      "after": "src/ccrr/training/attribute_study.py:run",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:wilson",
+      "after": "src/ccrr/calibration/probes.py:wilson",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:empirical_p95",
+      "after": "src/ccrr/calibration/probes.py:empirical_p95",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:labels",
+      "after": "src/ccrr/calibration/probes.py:labels",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:select_regions",
+      "after": "src/ccrr/calibration/probes.py:select_regions",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:weighted_quantile",
+      "after": "src/ccrr/calibration/probes.py:weighted_quantile",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:ProbeGenerator.__init__",
+      "after": "src/ccrr/calibration/probes.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:ProbeGenerator.streams",
+      "after": "src/ccrr/calibration/probes.py:streams",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:ProbeGenerator.table",
+      "after": "src/ccrr/calibration/probes.py:table",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:ProbeGenerator.background",
+      "after": "src/ccrr/calibration/probes.py:background",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:clinical_risk",
+      "after": "src/ccrr/calibration/probes.py:clinical_risk",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:probe_region",
+      "after": "src/ccrr/calibration/probes.py:probe_region",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/calibration.py:choose_threshold",
+      "after": "src/ccrr/calibration/probes.py:choose_threshold",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/cli.py:load_system",
+      "after": "src/ccrr/runtime/commands.py:load_system",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/cli.py:main",
+      "after": "src/ccrr/cli.py:main",
+      "status": "review_difference"
+    },
+    {
+      "before": "src/ccrr/comparisons.py:paired_clinical",
+      "after": "src/ccrr/evaluation/comparisons.py:paired_clinical",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/comparisons.py:privacy_points",
+      "after": "src/ccrr/evaluation/comparisons.py:privacy_points",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/comparisons.py:capability_benefit",
+      "after": "src/ccrr/evaluation/comparisons.py:capability_benefit",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/comparisons.py:threshold_at_fpr",
+      "after": "src/ccrr/evaluation/comparisons.py:threshold_at_fpr",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.__post_init__",
+      "after": "src/ccrr/config.py:__post_init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.regions",
+      "after": "src/ccrr/config.py:regions",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.symbols",
+      "after": "src/ccrr/config.py:symbols",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.packed_shape",
+      "after": "src/ccrr/config.py:packed_shape",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.step",
+      "after": "src/ccrr/config.py:step",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:Profile.from_dict",
+      "after": "src/ccrr/config.py:from_dict",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:sha256",
+      "after": "src/ccrr/config.py:sha256",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:canonical_json",
+      "after": "src/ccrr/config.py:canonical_json",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:load_config",
+      "after": "src/ccrr/config.py:load_config",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:load_manifest",
+      "after": "src/ccrr/config.py:load_manifest",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/config.py:export_manifest",
+      "after": "src/ccrr/config.py:export_manifest",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:Credential.__post_init__",
+      "after": "src/ccrr/codec/crypto.py:__post_init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:Credential.save",
+      "after": "src/ccrr/codec/crypto.py:save",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:Credential.load",
+      "after": "src/ccrr/codec/crypto.py:load",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:NonceAllocator.__init__",
+      "after": "src/ccrr/codec/crypto.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:NonceAllocator.new_object",
+      "after": "src/ccrr/codec/crypto.py:new_object",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:NonceAllocator.reserve",
+      "after": "src/ccrr/codec/crypto.py:reserve",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:NonceAllocator.close",
+      "after": "src/ccrr/codec/crypto.py:close",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:aad",
+      "after": "src/ccrr/codec/crypto.py:aad",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:seal",
+      "after": "src/ccrr/codec/crypto.py:seal",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/crypto.py:open_stream",
+      "after": "src/ccrr/codec/crypto.py:open_stream",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:preprocess",
+      "after": "src/ccrr/data/pad.py:preprocess",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:adapt",
+      "after": "src/ccrr/data/pad.py:adapt",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PADData.__init__",
+      "after": "src/ccrr/data/pad.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PADData.__len__",
+      "after": "src/ccrr/data/pad.py:__len__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PADData.__getitem__",
+      "after": "src/ccrr/data/pad.py:__getitem__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PADData.class_weights",
+      "after": "src/ccrr/data/pad.py:class_weights",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:collate",
+      "after": "src/ccrr/data/pad.py:collate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:rng_for",
+      "after": "src/ccrr/data/pad.py:rng_for",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PairSampler.__init__",
+      "after": "src/ccrr/data/pad.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PairSampler.image",
+      "after": "src/ccrr/data/pad.py:image",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/data.py:PairSampler.sample",
+      "after": "src/ccrr/data/pad.py:sample",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:EntropyModel.__init__",
+      "after": "src/ccrr/codec/entropy.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:EntropyModel.log_pmf",
+      "after": "src/ccrr/codec/entropy.py:log_pmf",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:EntropyModel.rate",
+      "after": "src/ccrr/codec/entropy.py:rate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:EntropyModel.export",
+      "after": "src/ccrr/codec/entropy.py:export",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:SourceCodec.__init__",
+      "after": "src/ccrr/codec/entropy.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:SourceCodec.quantize",
+      "after": "src/ccrr/codec/entropy.py:quantize",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:SourceCodec.encode",
+      "after": "src/ccrr/codec/entropy.py:encode",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/entropy.py:SourceCodec.decode",
+      "after": "src/ccrr/codec/entropy.py:decode",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/errors.py:CCRRError.__init__",
+      "after": "src/ccrr/errors.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/errors.py:require",
+      "after": "src/ccrr/errors.py:require",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/evaluation.py:evaluate_classifier",
+      "after": "src/ccrr/evaluation/runners.py:evaluate_classifier",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/evaluation.py:evaluate_identity",
+      "after": "src/ccrr/evaluation/runners.py:evaluate_identity",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/evaluation.py:evaluate_system",
+      "after": "src/ccrr/evaluation/runners.py:evaluate_system",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/external.py:ExternalDataset.__init__",
+      "after": "src/ccrr/data/external.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/external.py:ExternalDataset.__len__",
+      "after": "src/ccrr/data/external.py:__len__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/external.py:ExternalDataset.__getitem__",
+      "after": "src/ccrr/data/external.py:__getitem__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/external.py:ExternalDataset.claim_scope",
+      "after": "src/ccrr/data/external.py:claim_scope",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:PooledAttacker.__init__",
+      "after": "src/ccrr/evaluation/attacks.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:PooledAttacker.forward",
+      "after": "src/ccrr/evaluation/attacks.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.__init__",
+      "after": "src/ccrr/training/feature_audit.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.cache",
+      "after": "src/ccrr/training/feature_audit.py:cache",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.features",
+      "after": "src/ccrr/training/feature_audit.py:features",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.classifiers",
+      "after": "src/ccrr/training/feature_audit.py:classifiers",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.attack_scores",
+      "after": "src/ccrr/training/feature_audit.py:attack_scores",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.attackers",
+      "after": "src/ccrr/training/feature_audit.py:attackers",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/feature_audit.py:FeatureAudit.run",
+      "after": "src/ccrr/training/feature_audit.py:run",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.__init__",
+      "after": "src/ccrr/training/final_study.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.public",
+      "after": "src/ccrr/training/final_study.py:public",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.representation",
+      "after": "src/ccrr/training/final_study.py:representation",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.publish",
+      "after": "src/ccrr/training/final_study.py:publish",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.classifiers",
+      "after": "src/ccrr/training/final_study.py:classifiers",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.train_classifier",
+      "after": "src/ccrr/training/final_study.py:train_classifier",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.identity_attack",
+      "after": "src/ccrr/training/final_study.py:identity_attack",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.source_pairs",
+      "after": "src/ccrr/training/final_study.py:source_pairs",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.source_matching",
+      "after": "src/ccrr/evaluation/attack_scoring.py:source_matching",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.reconstruction_attack",
+      "after": "src/ccrr/training/final_study.py:reconstruction_attack",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.reconstruction_scores",
+      "after": "src/ccrr/evaluation/attack_scoring.py:reconstruction_scores",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.public_side_features",
+      "after": "src/ccrr/evaluation/attack_scoring.py:public_side_features",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.attributes",
+      "after": "src/ccrr/training/final_study.py:attributes",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/final_study.py:FinalStudy.run",
+      "after": "src/ccrr/training/final_study.py:run",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/gates.py:deployment_gate",
+      "after": "src/ccrr/evaluation/gates.py:deployment_gate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/joint_b.py:accepts",
+      "after": "src/ccrr/evaluation/joint_b.py:accepts",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:masked_mean",
+      "after": "src/ccrr/tensor_ops.py:masked_mean",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:ssim_values",
+      "after": "src/ccrr/tensor_ops.py:ssim_values",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:reconstruction",
+      "after": "src/ccrr/training/losses.py:reconstruction",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:gray_loss",
+      "after": "src/ccrr/training/losses.py:gray_loss",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:saturation",
+      "after": "src/ccrr/training/losses.py:saturation",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:balanced_mean",
+      "after": "src/ccrr/training/losses.py:balanced_mean",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:pair_bce",
+      "after": "src/ccrr/training/losses.py:pair_bce",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:contrastive",
+      "after": "src/ccrr/training/losses.py:contrastive",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:message_loss",
+      "after": "src/ccrr/training/losses.py:message_loss",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:clinical_loss",
+      "after": "src/ccrr/training/losses.py:clinical_loss",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/losses.py:js_divergence",
+      "after": "src/ccrr/training/losses.py:js_divergence",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metadata.py:serialize",
+      "after": "src/ccrr/codec/metadata.py:serialize",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metadata.py:deserialize",
+      "after": "src/ccrr/codec/metadata.py:deserialize",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:quality",
+      "after": "src/ccrr/evaluation/metrics.py:quality",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:clinical",
+      "after": "src/ccrr/evaluation/metrics.py:clinical",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:cluster_bootstrap",
+      "after": "src/ccrr/evaluation/metrics.py:cluster_bootstrap",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:pair_bootstrap",
+      "after": "src/ccrr/evaluation/metrics.py:pair_bootstrap",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:verification",
+      "after": "src/ccrr/evaluation/metrics.py:verification",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:retrieval",
+      "after": "src/ccrr/evaluation/metrics.py:retrieval",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:failure_funnel",
+      "after": "src/ccrr/evaluation/metrics.py:failure_funnel",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/metrics.py:raw_ber",
+      "after": "src/ccrr/evaluation/metrics.py:raw_ber",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:DoubleConv.__init__",
+      "after": "src/ccrr/evaluation/attacks.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:ReconstructionAttack.__init__",
+      "after": "src/ccrr/evaluation/attacks.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:ReconstructionAttack.forward",
+      "after": "src/ccrr/evaluation/attacks.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:SideChannelAttack.__init__",
+      "after": "src/ccrr/evaluation/attacks.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:SideChannelAttack.forward",
+      "after": "src/ccrr/evaluation/attacks.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:constant_latent_attack",
+      "after": "src/ccrr/evaluation/attacks.py:constant_latent_attack",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:ncc",
+      "after": "src/ccrr/evaluation/attacks.py:ncc",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/attacks.py:metadata_tensor",
+      "after": "src/ccrr/evaluation/attacks.py:metadata_tensor",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:ste_round",
+      "after": "src/ccrr/tensor_ops.py:ste_round",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:q8",
+      "after": "src/ccrr/tensor_ops.py:q8",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:public_adapter",
+      "after": "src/ccrr/tensor_ops.py:public_adapter",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:gray",
+      "after": "src/ccrr/tensor_ops.py:gray",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:squeeze",
+      "after": "src/ccrr/tensor_ops.py:squeeze",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:unsqueeze",
+      "after": "src/ccrr/tensor_ops.py:unsqueeze",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:pack",
+      "after": "src/ccrr/tensor_ops.py:pack",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:unpack",
+      "after": "src/ccrr/tensor_ops.py:unpack",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:pooled",
+      "after": "src/ccrr/tensor_ops.py:pooled",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:finite",
+      "after": "src/ccrr/tensor_ops.py:finite",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:LNch.__init__",
+      "after": "src/ccrr/tensor_ops.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:LNch.forward",
+      "after": "src/ccrr/tensor_ops.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:ResBlock.__init__",
+      "after": "src/ccrr/tensor_ops.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:ResBlock.forward",
+      "after": "src/ccrr/tensor_ops.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:pos1",
+      "after": "src/ccrr/tensor_ops.py:pos1",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:pos2",
+      "after": "src/ccrr/tensor_ops.py:pos2",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:haar",
+      "after": "src/ccrr/tensor_ops.py:haar",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:ihaar",
+      "after": "src/ccrr/tensor_ops.py:ihaar",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/common.py:init_comm",
+      "after": "src/ccrr/tensor_ops.py:init_comm",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:patches",
+      "after": "src/ccrr/communication/network.py:patches",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:assemble",
+      "after": "src/ccrr/communication/network.py:assemble",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:SpatialUnit.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:SpatialUnit.grouped",
+      "after": "src/ccrr/communication/network.py:grouped",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:SpatialUnit.forward",
+      "after": "src/ccrr/communication/network.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:CarrierEncoder.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:CarrierEncoder.forward",
+      "after": "src/ccrr/communication/network.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:BudgetHeads.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:BudgetHeads.forward",
+      "after": "src/ccrr/communication/network.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:LocalWriter.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:LocalWriter.forward",
+      "after": "src/ccrr/communication/network.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:LocalDecoder.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:LocalDecoder.forward",
+      "after": "src/ccrr/communication/network.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:Communication.__init__",
+      "after": "src/ccrr/communication/network.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:Communication.write",
+      "after": "src/ccrr/communication/network.py:write",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/communication.py:Communication.read",
+      "after": "src/ccrr/communication/network.py:read",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:ReversibleBlock.__init__",
+      "after": "src/ccrr/representation/inn.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:ReversibleBlock.matrix",
+      "after": "src/ccrr/representation/inn.py:matrix",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:ReversibleBlock.forward",
+      "after": "src/ccrr/representation/inn.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:INN.__init__",
+      "after": "src/ccrr/representation/inn.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:INN.forward",
+      "after": "src/ccrr/representation/inn.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:INN.inverse",
+      "after": "src/ccrr/representation/inn.py:inverse",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:FixedGrayDecomposition.forward",
+      "after": "src/ccrr/representation/inn.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/inn.py:FixedGrayDecomposition.inverse",
+      "after": "src/ccrr/representation/inn.py:inverse",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:MaskedNet.__init__",
+      "after": "src/ccrr/representation/purifier.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:MaskedNet.forward",
+      "after": "src/ccrr/representation/purifier.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:Purifier.__init__",
+      "after": "src/ccrr/representation/purifier.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:Purifier.forward",
+      "after": "src/ccrr/representation/purifier.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:SymmetricHead.__init__",
+      "after": "src/ccrr/tensor_ops.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:SymmetricHead.forward",
+      "after": "src/ccrr/tensor_ops.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:SemanticAttacker.__init__",
+      "after": "src/ccrr/representation/purifier.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:SemanticAttacker.encode",
+      "after": "src/ccrr/representation/purifier.py:encode",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/purifier.py:SemanticAttacker.forward",
+      "after": "src/ccrr/representation/purifier.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:freeze",
+      "after": "src/ccrr/teachers/adapters.py:freeze",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:freeze_bn",
+      "after": "src/ccrr/teachers/adapters.py:freeze_bn",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:load_weights",
+      "after": "src/ccrr/teachers/adapters.py:load_weights",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:ClinicalModel.__init__",
+      "after": "src/ccrr/teachers/adapters.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:ClinicalModel.forward",
+      "after": "src/ccrr/teachers/adapters.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:IdentityModel.__init__",
+      "after": "src/ccrr/teachers/adapters.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:IdentityModel.features",
+      "after": "src/ccrr/teachers/adapters.py:features",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:IdentityModel.forward",
+      "after": "src/ccrr/teachers/adapters.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:IdentityModel.score",
+      "after": "src/ccrr/teachers/adapters.py:score",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:PanDerm.__init__",
+      "after": "src/ccrr/teachers/adapters.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/models/teachers.py:PanDerm.forward",
+      "after": "src/ccrr/teachers/adapters.py:forward",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/optional_metrics.py:LPIPSMetric.__init__",
+      "after": "src/ccrr/evaluation/optional_metrics.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/optional_metrics.py:LPIPSMetric.__call__",
+      "after": "src/ccrr/evaluation/optional_metrics.py:__call__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/optional_metrics.py:fid_directories",
+      "after": "src/ccrr/evaluation/optional_metrics.py:fid_directories",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/optional_metrics.py:ClipIQA.__init__",
+      "after": "src/ccrr/evaluation/optional_metrics.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/optional_metrics.py:ClipIQA.__call__",
+      "after": "src/ccrr/evaluation/optional_metrics.py:__call__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/preflight.py:inspect",
+      "after": "src/ccrr/runtime/preflight.py:inspect",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/rans.py:validate_cdfs",
+      "after": "src/ccrr/codec/rans.py:validate_cdfs",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/rans.py:encode",
+      "after": "src/ccrr/codec/rans.py:encode",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/rans.py:decode",
+      "after": "src/ccrr/codec/rans.py:decode",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:int_bits",
+      "after": "src/ccrr/communication/records.py:int_bits",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:bits_int",
+      "after": "src/ccrr/communication/records.py:bits_int",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:Record.validate",
+      "after": "src/ccrr/communication/records.py:validate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:Record.bits",
+      "after": "src/ccrr/communication/records.py:bits",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:Record.from_bits",
+      "after": "src/ccrr/communication/records.py:from_bits",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:split_stream",
+      "after": "src/ccrr/communication/records.py:split_stream",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:reassemble",
+      "after": "src/ccrr/communication/records.py:reassemble",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:route",
+      "after": "src/ccrr/communication/records.py:route",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/records.py:logits_to_records",
+      "after": "src/ccrr/communication/records.py:logits_to_records",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/robustness.py:channels",
+      "after": "src/ccrr/evaluation/robustness.py:channels",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/robustness.py:capability_matrix",
+      "after": "src/ccrr/evaluation/robustness.py:capability_matrix",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/robustness.py:evaluate_channels",
+      "after": "src/ccrr/evaluation/robustness.py:evaluate_channels",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/routing_validation.py:choose_routing",
+      "after": "src/ccrr/calibration/routing.py:choose_routing",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:seed_everything",
+      "after": "src/ccrr/runtime/support.py:seed_everything",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:environment",
+      "after": "src/ccrr/runtime/support.py:environment",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:json_safe",
+      "after": "src/ccrr/runtime/support.py:json_safe",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:write_json",
+      "after": "src/ccrr/runtime/support.py:write_json",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:log_json",
+      "after": "src/ccrr/runtime/support.py:log_json",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:optimizer",
+      "after": "src/ccrr/training/optimization.py:optimizer",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:schedule",
+      "after": "src/ccrr/training/optimization.py:schedule",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:update",
+      "after": "src/ccrr/training/optimization.py:update",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:save_checkpoint",
+      "after": "src/ccrr/runtime/checkpoints.py:save_checkpoint",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/runtime.py:load_checkpoint",
+      "after": "src/ccrr/runtime/checkpoints.py:load_checkpoint",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/smoke.py:run",
+      "after": "src/ccrr/runtime/smoke.py:run",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/source_privacy.py:evaluate_source_privacy",
+      "after": "src/ccrr/evaluation/source_privacy.py:evaluate_source_privacy",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/structural_attacks.py:evaluate",
+      "after": "src/ccrr/evaluation/structural_attacks.py:evaluate",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:geometry_weights",
+      "after": "src/ccrr/representation/supervision.py:geometry_weights",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:align",
+      "after": "src/ccrr/representation/supervision.py:align",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:heat_weights",
+      "after": "src/ccrr/representation/supervision.py:heat_weights",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:TeacherSupervision.__init__",
+      "after": "src/ccrr/representation/supervision.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:TeacherSupervision.targets",
+      "after": "src/ccrr/representation/supervision.py:targets",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/supervision.py:TeacherSupervision.loss",
+      "after": "src/ccrr/representation/supervision.py:loss",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.__init__",
+      "after": "src/ccrr/runtime/system.py:__init__",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.bind",
+      "after": "src/ccrr/runtime/system.py:bind",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.decompose",
+      "after": "src/ccrr/runtime/system.py:decompose",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.recover",
+      "after": "src/ccrr/runtime/system.py:recover",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.quantized",
+      "after": "src/ccrr/runtime/system.py:quantized",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.payload",
+      "after": "src/ccrr/runtime/system.py:payload",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.send",
+      "after": "src/ccrr/runtime/system.py:send",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.receive_records",
+      "after": "src/ccrr/runtime/system.py:receive_records",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:CCRR.receive",
+      "after": "src/ccrr/runtime/system.py:receive",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:save_public",
+      "after": "src/ccrr/runtime/system.py:save_public",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/system.py:load_public",
+      "after": "src/ccrr/runtime/system.py:load_public",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.__init__",
+      "after": "src/ccrr/training/experiment.py:__init__",
+      "status": "review_difference"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.initialize_base",
+      "after": "src/ccrr/training/teachers.py:initialize_base",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.preflight",
+      "after": "src/ccrr/training/experiment.py:preflight",
+      "status": "review_difference"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.batch",
+      "after": "src/ccrr/training/experiment.py:batch",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.log",
+      "after": "src/ccrr/training/experiment.py:log",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.mark",
+      "after": "src/ccrr/training/experiment.py:mark",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.train_classifier",
+      "after": "src/ccrr/training/teachers.py:train_classifier",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.stage_a",
+      "after": "src/ccrr/training/teachers.py:stage_a",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.train_mfm_probe",
+      "after": "src/ccrr/training/teachers.py:train_mfm_probe",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.train_reid_teacher",
+      "after": "src/ccrr/training/teachers.py:train_reid_teacher",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.semantic_view",
+      "after": "src/ccrr/training/purifier.py:semantic_view",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.semantic_adversary_step",
+      "after": "src/ccrr/training/purifier.py:semantic_adversary_step",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.stage_b",
+      "after": "src/ccrr/training/purifier.py:stage_b",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.validate_purifier",
+      "after": "src/ccrr/training/purifier.py:validate_purifier",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.identity_threshold",
+      "after": "src/ccrr/training/purifier.py:identity_threshold",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.bind_snapshot",
+      "after": "src/ccrr/training/experiment.py:bind_snapshot",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.pair_public",
+      "after": "src/ccrr/training/adversarial.py:pair_public",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.pair_objective",
+      "after": "src/ccrr/training/adversarial.py:pair_objective",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.adversarial_updates",
+      "after": "src/ccrr/training/adversarial.py:adversarial_updates",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.validate_recovery",
+      "after": "src/ccrr/evaluation/selection.py:validate_recovery",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.validate_representation_semantics",
+      "after": "src/ccrr/evaluation/selection.py:validate_representation_semantics",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.train_representation",
+      "after": "src/ccrr/training/representation.py:train_representation",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.stage_f",
+      "after": "src/ccrr/training/communication.py:stage_f",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.validate_communication_warmup",
+      "after": "src/ccrr/training/communication.py:validate_communication_warmup",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.collect_risks",
+      "after": "src/ccrr/calibration/workflow.py:collect_risks",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.stage_g",
+      "after": "src/ccrr/calibration/workflow.py:stage_g",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.choose_conservative_budget",
+      "after": "src/ccrr/calibration/workflow.py:choose_conservative_budget",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.joint",
+      "after": "src/ccrr/training/joint.py:joint",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.validate_deployment",
+      "after": "src/ccrr/evaluation/deployment.py:validate_deployment",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment._validate_deployment_once",
+      "after": "src/ccrr/evaluation/deployment.py:_validate_deployment_once",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.final_evaluation",
+      "after": "src/ccrr/training/runner.py:final_evaluation",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.run",
+      "after": "src/ccrr/training/runner.py:run",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:Experiment.restore_dependencies",
+      "after": "src/ccrr/training/runner.py:restore_dependencies",
+      "status": "normalized_identical"
+    },
+    {
+      "before": "src/ccrr/training.py:CounterLocal",
+      "status": "explicit_exception",
+      "reason": "Removed trivial CounterLocal wrapper"
+    }
+  ],
+  "counts": {
+    "explicit_exception": 1,
+    "normalized_identical": 274,
+    "review_difference": 3
+  },
+  "decorators_compared": true,
+  "cli": {
+    "parser_unchanged": true,
+    "error_handler_unchanged": true,
+    "handlers": {
+      "inspect": true,
+      "preflight": true,
+      "train": true,
+      "audit-data": true,
+      "export": true,
+      "receive": true,
+      "send": true,
+      "smoke": true
+    }
+  },
+  "unexpected_differences": []
+}

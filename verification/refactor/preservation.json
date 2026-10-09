@@ -1,0 +1,74 @@
+{
+  "design": {
+    "path": "/Users/zhuyanghang/Desktop/论文/医学图像双能力授权系统_完整方案_V1修订版.md",
+    "original_sha256": "6319564fce9923f01d34f367e2e46ee20b9bf2dc90e0ae6a094f2863b9c5a549",
+    "current_sha256": "6319564fce9923f01d34f367e2e46ee20b9bf2dc90e0ae6a094f2863b9c5a549",
+    "unchanged": true
+  },
+  "protected_files": {
+    "configs/pad512.yaml": {
+      "original_sha256": "2b139ada23c597b0ef8472f64637ac5dd3ff0a329728646494cbfb1a3993507e",
+      "current_sha256": "2b139ada23c597b0ef8472f64637ac5dd3ff0a329728646494cbfb1a3993507e",
+      "unchanged": true
+    },
+    "pyproject.toml": {
+      "original_sha256": "edf75d731b53fdf39ad2f5a0efa5a6266919b4de1be6d81f8cb7a9b96a7badb5",
+      "current_sha256": "edf75d731b53fdf39ad2f5a0efa5a6266919b4de1be6d81f8cb7a9b96a7badb5",
+      "unchanged": true
+    },
+    "requirements-local-macos.lock": {
+      "original_sha256": "e88f2c771abfc5f7af6bfe27bdd39cb74df855b128be60d714d05e1e12f02822",
+      "current_sha256": "e88f2c771abfc5f7af6bfe27bdd39cb74df855b128be60d714d05e1e12f02822",
+      "unchanged": true
+    },
+    "verification/implementation_report.json": {
+      "original_sha256": "d4ebd5901300bc08e30cbb600cc814a6297868deabce38389e83004a41819662",
+      "current_sha256": "d4ebd5901300bc08e30cbb600cc814a6297868deabce38389e83004a41819662",
+      "unchanged": true
+    },
+    "tests/fixtures/compressai_1_2_8_vectors.json": {
+      "original_sha256": "3058d46b0532ac6bb4835dd72a2fb3e28d5a31a19ad42e427b716e198a54888e",
+      "current_sha256": "3058d46b0532ac6bb4835dd72a2fb3e28d5a31a19ad42e427b716e198a54888e",
+      "unchanged": true
+    }
+  },
+  "original_git_state": "not a git repository; no existing commits or branch",
+  "baseline_commit": "b2e81875ec092dca6e2ce1bafe9c8a383d291f2f",
+  "branch": "refactor/pad512-v1.1-architecture",
+  "archive": {
+    "path": "/Users/zhuyanghang/Desktop/论文/audit/architecture_refactor_20261009/original_ccrr.tar.gz",
+    "sha256": "6812a03ddba212ea8cb7456635b87063e9db33183271f41e5e8a9105a9fc6c52"
+  },
+  "large_model_downloaded": false,
+  "formal_training_started": false,
+  "protocol_constants_and_class_fields": {
+    "src/ccrr/config.py": {
+      "current": "src/ccrr/config.py",
+      "unchanged": true
+    },
+    "src/ccrr/crypto.py": {
+      "current": "src/ccrr/codec/crypto.py",
+      "unchanged": true
+    },
+    "src/ccrr/metadata.py": {
+      "current": "src/ccrr/codec/metadata.py",
+      "unchanged": true
+    },
+    "src/ccrr/entropy.py": {
+      "current": "src/ccrr/codec/entropy.py",
+      "unchanged": true
+    },
+    "src/ccrr/rans.py": {
+      "current": "src/ccrr/codec/rans.py",
+      "unchanged": true
+    },
+    "src/ccrr/records.py": {
+      "current": "src/ccrr/communication/records.py",
+      "unchanged": true
+    },
+    "src/ccrr/errors.py": {
+      "current": "src/ccrr/errors.py",
+      "unchanged": true
+    }
+  }
+}

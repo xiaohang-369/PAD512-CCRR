@@ -1,0 +1,18 @@
+{
+  "seed_per_model": 77,
+  "comparison": {
+    "system": {
+      "keys": 288,
+      "identical": true
+    },
+    "purifier": {
+      "keys": 69,
+      "identical": true
+    },
+    "semantic_attacker": {
+      "keys": 26,
+      "identical": true
+    }
+  },
+  "scope": "Untrained initial state keys, shapes and exact tensor bytes; not teacher weights or training outcomes"
+}

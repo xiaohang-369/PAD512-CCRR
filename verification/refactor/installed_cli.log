@@ -1,0 +1,10 @@
+usage: ccrr [-h]
+            {inspect,train,preflight,audit-data,export,receive,send,smoke} ...
+
+Complete capability-conditioned medical representation research system
+
+positional arguments:
+  {inspect,train,preflight,audit-data,export,receive,send,smoke}
+
+options:
+  -h, --help            show this help message and exit

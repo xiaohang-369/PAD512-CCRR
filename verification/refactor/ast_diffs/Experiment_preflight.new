@@ -1,0 +1,6 @@
+def preflight(self):
+    report = inspect(self.cfg)
+    report['ready'] = report['ready_for_teacher_training']
+    report['training_started'] = False
+    write_json(self.output / 'preflight.json', report)
+    require(report['ready'], f"Preflight incomplete: {report['missing']}")

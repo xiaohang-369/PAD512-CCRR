@@ -1,0 +1,39 @@
+{
+  "python": "3.11.15",
+  "platform": "macOS-26.6-arm64-arm-64bit",
+  "packages": {
+    "torch": "2.6.0",
+    "torchvision": "0.21.0",
+    "numpy": "2.2.6",
+    "Pillow": "11.3.0",
+    "cryptography": "44.0.3",
+    "timm": "0.9.16",
+    "scipy": "1.15.3",
+    "scikit-learn": "1.6.1",
+    "scikit-image": "0.25.2"
+  },
+  "cuda": null,
+  "devices": [],
+  "weights": {
+    "efficientnet_b0": {
+      "exists": false,
+      "expected_hash_configured": false
+    },
+    "resnet50": {
+      "exists": false,
+      "expected_hash_configured": false
+    },
+    "convnext_tiny": {
+      "exists": false,
+      "expected_hash_configured": false
+    },
+    "swin_t": {
+      "exists": false,
+      "expected_hash_configured": false
+    },
+    "panderm": {
+      "exists": false,
+      "expected_hash_configured": false
+    }
+  }
+}

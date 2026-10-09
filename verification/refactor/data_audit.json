@@ -1,0 +1,47 @@
+{
+  "fit": {
+    "images": 1433,
+    "patients": 863,
+    "metadata_json_bytes": [
+      176,
+      253
+    ],
+    "all_preprocessing_hashes_verified": true
+  },
+  "calibration": {
+    "images": 154,
+    "patients": 96,
+    "metadata_json_bytes": [
+      180,
+      254
+    ],
+    "all_preprocessing_hashes_verified": true
+  },
+  "val_tune": {
+    "images": 169,
+    "patients": 102,
+    "metadata_json_bytes": [
+      179,
+      251
+    ],
+    "all_preprocessing_hashes_verified": true
+  },
+  "val_select": {
+    "images": 170,
+    "patients": 103,
+    "metadata_json_bytes": [
+      178,
+      250
+    ],
+    "all_preprocessing_hashes_verified": true
+  },
+  "test": {
+    "images": 338,
+    "patients": 206,
+    "metadata_json_bytes": [
+      179,
+      251
+    ],
+    "all_preprocessing_hashes_verified": true
+  }
+}

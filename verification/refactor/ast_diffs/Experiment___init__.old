@@ -1,0 +1,33 @@
+def __init__(self, config):
+    self.cfg = config
+    self.seed = int(config['seed'])
+    seed_everything(self.seed)
+    self.device = torch.device(config['device'])
+    self.output = Path(config['output'])
+    self.output.mkdir(parents=True, exist_ok=True, mode=448)
+    require(self.output.resolve() != Path(__file__).parents[2].resolve(), 'Outputs belong outside source')
+    write_json(self.output / 'environment.json', environment())
+    require(self.device.type != 'cuda' or torch.cuda.is_available(), 'CUDA unavailable on this host; use CPU for engineering checks and the H100 for the formal run')
+    self.profile = Profile.from_dict(config.get('profile', {}))
+    self.data = {}
+    for role in ('fit', 'calibration', 'val_tune', 'val_select'):
+        self.data[role] = PADData(config['data_root'], role, self.profile.size)
+    self.fit = self.data['fit']
+    self.sampler = PairSampler(self.fit)
+    self.weights = self.fit.class_weights().to(self.device)
+    self.system = CCRR(self.profile, config.get('fixed_gray', False), config.get('patch_batch', 16)).to(self.device)
+    self.clinical = ClinicalModel().to(self.device)
+    self.reid = IdentityModel(len(self.fit.patients)).to(self.device)
+    self.purifier = Purifier().to(self.device)
+    self.sem_attacker = SemanticAttacker().to(self.device)
+    self.pub_attacker = IdentityModel(len(self.fit.patients)).to(self.device)
+    self.mfm = None
+    self.supervision = None
+    self.allocator = NonceAllocator(self.output / 'private' / 'nonce.sqlite')
+    self.acceptance = {}
+    self.policies = {}
+    self.risks = {}
+    self.snapshot_index = 0
+    write_json(self.output / 'config.json', config)
+    write_json(self.output / 'environment.json', environment())
+    write_json(self.output / 'data_hashes.json', {role: sha256(Path(config['data_root']) / 'protocol_audit_20261009' / 'roles' / f'{role}.json') for role in self.data})

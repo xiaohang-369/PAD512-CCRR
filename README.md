@@ -4,18 +4,26 @@
 
 **恢复契约：RGB 高保真近似恢复；认证成功后，选定量化等级的整数 latent 与 PAD-M1 字段精确恢复。** 代码和数值检查不能代替训练结果。此目录没有训练后的模型，也没有任何临床有效性、身份隐私或神经通信成功率的证明。
 
-## 当前验证状态
+## 本轮架构审查与验证
 
-- 已在本机 CPU 运行 512 尺寸的可逆主干、神经写入/读取及反向梯度检查。
-- 已核验真实 PAD 清洗集 2,264 张图的预处理像素摘要，以及全部 metadata 的精确序列化往返。
-- 已测试独立凭证、错误密钥、并发 nonce、残缺/重复记录、畸形熵流、容量限制、冻结教师的输入梯度及训练 checkpoint 保存/恢复。
-- 有界 Python rANS64 与 CompressAI 1.2.8 原生实现已完成本机合法固定向量的双向互通及字节一致检查。生产接收不调用原生实现的无边界指针解析。
-- 512 工程检查使用合成低熵 latent。数字协议成功，**未训练盲解码器返回 Extraction Failure**，不能将这次检查称为图像载荷恢复成功。
-- 完整医学训练、全部阶段调度、PanDerm 真实权重加载、GPU 显存与吞吐、最终统计评价尚未实跑。正式 H100 环境需要独立检查。
+本轮按最终设计稿进行了受控结构重构，工作分支为 `refactor/pad512-v1.1-architecture`，原始源码保存在 `baseline/original`（`b2e8187`）。原目录没有 Git，已先建立归档和基线再重构。
 
-当前证据在项目外 `/Users/zhuyanghang/Desktop/CCRR-experiments/`；代码内 `verification/implementation_report.json` 是本次工程检查索引。
+- [工程架构报告](docs/01_工程架构报告.md)
+- [设计—代码追踪表](docs/02_设计代码追踪表.md)
+- [完整验证报告与设计冲突](docs/03_完整验证报告.md)
+- [H100 后续训练准备清单](docs/04_H100后续训练准备清单.md)
 
-## 安装与完整运行
+本次结果：**41 passed，3 strict xfailed**（启用已有 CompressAI 原生参照）。三个预期失败是既有设计冲突：occupancy 空洞、有效 batch 加权 CE、JS 风险量纲，不能计作验收通过。不配置可选原生参照时为 40 passed、1 skipped、3 xfailed。
+
+真实 PAD 五角色 2,264 图的 512 预处理像素摘要及全部 metadata 往返已重新核验。512 非平凡 INN 正逆、参数/输入梯度、消息读写梯度、底层 checkpoint 下一次优化器更新一致性、包/CLI 和阶段分派检查通过。**阶段分派检查不是 A–J 完整训练。**
+
+512 smoke 使用合成零 latent；正确记录 oracle 的数字协议成功，真实未训练盲 Decoder 的 C/M 均返回 `Extraction Failure`。没有真实教师权重加载、完整医学训练、H100 验证或科学指标达标证据。
+
+除三个可执行反例外，还发现选点规则、标定背景/闭环、阶段恢复和最终统计等缺项，已在验证报告 D01–D24 登记。本轮保留科研行为，未改最终设计稿。**目前不能认为下载权重、填路径后就可直接开始符合最终稿的正式训练。**
+
+本次证据在 `verification/refactor/`；原 `verification/implementation_report.json` 是保留的历史报告。新的复现入口是 `python scripts/verify_refactor.py`；它不下载模型、不启动正式训练。
+
+## 安装与训练入口（先解决审查报告中的阻塞）
 
 建议使用独立 Python 3.11 环境，数据、权重、凭证和实验输出放在源码目录之外。当前本机环境为 `/Users/zhuyanghang/Desktop/ccrr-runtime`。正式 GPU 主机先配置对应的 PyTorch/CUDA 构建，不能把本机 macOS 锁文件当作 H100 的锁文件。
 
@@ -70,17 +78,21 @@ Nonce 由 SQLite `WAL + synchronous=FULL + BEGIN IMMEDIATE` 预留。不要复�
 
 ## 工程布局
 
-| 路径 | 职责 |
+| 路径（相对 src/ccrr） | 职责 |
 |---|---|
-| `src/ccrr/system.py` | 发送、实际载体接收、能力独立返回、PNG 保存/重读 |
-| `models/inn.py` | 三尺度 INN、Cayley 通道混合、共享解析逆、固定灰度对照 |
-| `models/communication.py` | Carrier Encoder、预算/可靠性头、Haar 软频带 Writer、盲 Decoder |
-| `models/teachers.py`, `models/purifier.py`, `supervision.py` | 教师适配与严格加载、Purifier、来源 mask 和局部几何监督 |
-| `entropy.py`, `rans.py`, `metadata.py`, `crypto.py`, `records.py` | 多等级整数源编码、PAD-M1、AEAD、nonce、记录与路由 |
-| `training.py`, `feature_audit.py`, `calibration.py` | 完整训练调度、独立特征读出、实测 probe、阶段验收 |
-| `evaluation.py`, `final_study.py`, `metrics.py` | 实际链路结果、分类与隐私攻击、失败分母、患者重采样 |
-| `robustness.py`, `comparisons.py`, `joint_b.py` | 凭证矩阵、有损通道检查、配对比较及 Joint-B 回退条件 |
-| `optional_metrics.py`, `external.py` | LPIPS/FID/CLIP-IQA 接口、明确标注泛化层级的外部分科契约 |
+| `cli.py` | 参数解析、命令分派和错误出口 |
+| `data/` | PAD 预处理、五角色、患者配对、外部数据契约 |
+| `teachers/` | Clinical/MFM/ReID 与终评模型适配、严格权重加载 |
+| `representation/` | 三尺度 INN、Purifier、来源 mask 与局部监督 |
+| `codec/` | 统一量化、整数 CDF/rANS、PAD-M1、独立 AEAD/nonce/凭证 |
+| `communication/` | Carrier/两类 heads、Haar Writer、盲 Decoder、记录/路由 |
+| `runtime/` | send/receive/export 业务、真实 PNG、preflight、checkpoint 序列化、工程 smoke |
+| `training/` | Experiment 资源上下文、显式 A–J runner、阶段优化/损失、独立读出和攻击者训练 |
+| `calibration/` | 风险、probe/标签、阈值/预算/排序、G 工作流 |
+| `evaluation/` | 实际链路/开发选点/冻结攻击评分、指标、失败分母、患者统计 |
+| `tensor_ops.py`, `config.py`, `errors.py` | 共用张量与神经基础块、冻结配置、失败语义 |
+
+旧内部 Python import 路径已迁移，没有转发壳；CLI 参数和 checkpoint/state_dict 格式保持。训练、测试、发送端共用同一套量化、记录、编码与接收机制。
 
 LPIPS、FID 和 CLIP-IQA 不参与选型或临床准入。CLIP-IQA 需要提供固定版本官方实现的适配文件和权重；当前未运行这些探索性指标。跨分科数据仍需真实数据许可、标签映射、患者标识与新 metadata profile 核验，不能仅凭接口存在就声称跨分科实验完成。
 

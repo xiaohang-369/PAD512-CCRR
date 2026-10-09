@@ -1,0 +1,168 @@
+{
+  "timestamp_utc": "2026-10-09T13:26:29.516573+00:00",
+  "design": "PAD512-CCRR-v1.1",
+  "checks": [
+    {
+      "name": "dependency_consistency",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "pip",
+        "check"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "static_names",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests",
+        "scripts",
+        "--select",
+        "F"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "syntax",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "scripts"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "tests",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-rx",
+        "--junitxml=/Users/zhuyanghang/Desktop/论文/ccrr/verification/refactor/pytest.xml"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "installed_cli",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/ccrr",
+        "--help"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "module_cli",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "ccrr.cli",
+        "--help"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "inspect",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "ccrr.cli",
+        "inspect",
+        "--config",
+        "configs/pad512.yaml"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "preflight_missing_resources",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "ccrr.cli",
+        "preflight",
+        "--config",
+        "/var/folders/kn/0lt0hz_12w9698gx2y5l2h700000gn/T/ccrr-refactor-9g6wm7u6/config.yaml"
+      ],
+      "exit_code": 2,
+      "expected_exit_code": 2,
+      "matched": true
+    },
+    {
+      "name": "smoke512",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "-m",
+        "ccrr.cli",
+        "smoke",
+        "--size",
+        "512",
+        "--out",
+        "/var/folders/kn/0lt0hz_12w9698gx2y5l2h700000gn/T/ccrr-refactor-9g6wm7u6/smoke"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    },
+    {
+      "name": "architecture",
+      "command": [
+        "/Users/zhuyanghang/Desktop/ccrr-runtime/bin/python",
+        "scripts/audit_architecture.py",
+        "--out",
+        "/Users/zhuyanghang/Desktop/论文/ccrr/verification/refactor/architecture.json"
+      ],
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "matched": true
+    }
+  ],
+  "native_reference": {
+    "path": "/Users/zhuyanghang/Desktop/CCRR-experiments/codec-reference/ans.cpython-311-darwin.so",
+    "sha256": "03b4b8dba1555eccda2b6000d4a2fd69036d10ec5ca1813b4526e7c14da90387"
+  },
+  "pytest": {
+    "tests": 44,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3
+  },
+  "engineering_checks_matched_expected": true,
+  "expected_design_failures": [
+    "D01",
+    "D03",
+    "D04"
+  ],
+  "complete_training_passed": false,
+  "scientific_targets_validated": false,
+  "real_teacher_weights_validated": false,
+  "H100_validated": false,
+  "note": "JUnit skipped includes strict expected failures; consult tests.log. Dispatch call recording is not training evidence.",
+  "final_source_commit": "9907955be42e40758701c5425519fbb626a3d31e",
+  "post_suite_checks": {
+    "cli_dead_code_cleanup": "Two unreachable returns removed; both CLI tests passed afterward. See final_cli_recheck.log.",
+    "final_ast_comparison": "274 original functions match after documented normalization, decorators retained; all 8 command bodies/parser/error handler match; no unregistered difference.",
+    "design_and_protocol_preservation": "See preservation.json; design, 5 protected files, protocol constants and Profile class fields unchanged."
+  }
+}
