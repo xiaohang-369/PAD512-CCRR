@@ -1,0 +1,46 @@
+experiment: PAD512-CCRR-v1.1
+seed: 20261008
+device: cuda
+output: /Users/zhuyanghang/Desktop/CCRR-experiments/pad512-seed20261008
+data_root: /Users/zhuyanghang/Desktop/PAD-UFES-20
+profile:
+  size: 512
+  research: true
+batch_images: 8
+batch_teacher: 16
+batch_pairs: 16
+microbatch: 1
+patch_batch: 16
+lambda_rate: 0.01
+lambda_privacy: 0.1
+# Every weight entry requires a local path and its verified SHA-256.
+# base_* are official ImageNet base checkpoints, not PAD downstream checkpoints.
+weights:
+  efficientnet_b0: {path: null, sha256: null}
+  resnet50: {path: null, sha256: null}
+  convnext_tiny: {path: null, sha256: null}
+  swin_t: {path: null, sha256: null}
+  panderm:
+    path: null
+    sha256: null
+    source: null
+    source_sha256: null
+    overlap_audit: unknown
+budgets:
+  clinical: 5000
+  mfm_probe: 2000
+  reid: 10000
+  purifier: 10000
+  recovery: 10000
+  representation: 20000
+  multirate: 10000
+  communication: 20000
+  heads: 2000
+  joint_a: 10000
+  joint_b: 2000
+  evaluator: 5000
+  attacker: 10000
+  reconstruction_attack: 20000
+joint_b: false
+# No test-based tuning. Artifacts are bound to a snapshot and role hashes.
+bootstrap_repetitions: 2000
