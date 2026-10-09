@@ -1,7 +1,12 @@
+from ccrr.codec.quantization import quantize_latent, dequantize_latent
+
 """Independent evaluation on a frozen system, including adaptive source attacks."""
 
-from collections import defaultdict, Counter
-import hashlib
+from ccrr.evaluation import attack_scoring
+from ccrr.training.teachers import initialize_base
+
+
+from collections import Counter
 import numpy as np
 import torch
 from torch.nn import functional as F
@@ -10,19 +15,13 @@ from ccrr.teachers.adapters import ClinicalModel, IdentityModel, freeze_bn, free
 from ccrr.evaluation.attacks import (
     ReconstructionAttack,
     constant_latent_attack,
-    ncc,
     metadata_tensor,
 )
-from ccrr.tensor_ops import gray, ste_round
-from ccrr.training.losses import reconstruction, contrastive, ssim_values
-from ccrr.runtime.support import (
-    optimizer,
-    schedule,
-    update,
-    write_json,
-    save_checkpoint,
-    load_checkpoint,
-)
+from ccrr.tensor_ops import gray
+from ccrr.training.losses import reconstruction, contrastive
+from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.runtime.support import write_json
+from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.evaluation.runners import (
     evaluate_classifier,
     evaluate_identity,
@@ -32,7 +31,6 @@ from ccrr.evaluation.metrics import quality
 from ccrr.runtime.system import load_public
 from ccrr.errors import require
 from ccrr.calibration.probes import clinical_risk
-from ccrr.communication.records import logits_to_records, reassemble
 from ccrr.codec.metadata import FIELDS
 
 
@@ -134,7 +132,7 @@ class FinalStudy:
 
     def train_classifier(self, model, name, rep):
         e = self.e
-        e.initialize_base(model, model.architecture)
+        initialize_base(e, model, model.architecture)
         head = (
             model.model.head
             if model.architecture == "swin_t"
@@ -230,7 +228,7 @@ class FinalStudy:
     def identity_attack(self, family, scenario, direction, representation="public"):
         e = self.e
         model = IdentityModel(len(e.fit.patients), family).to(e.device)
-        e.initialize_base(model, family)
+        initialize_base(e, model, family)
         opt = optimizer(
             [model.model, model.classifier, model.project, model.pair],
             [1e-4, 1e-3, 1e-3, 1e-3],
@@ -280,7 +278,9 @@ class FinalStudy:
             update(opt)
             if (step + 1) % 1000 == 0 or step + 1 == total:
                 if scenario == "p3":
-                    report = self.source_matching(model, "val_select", qrep)
+                    report = attack_scoring.source_matching(
+                        self, model, "val_select", qrep
+                    )
                     score = report["pair"]["source_rank1"]
                 else:
                     report = evaluate_identity(
@@ -302,7 +302,7 @@ class FinalStudy:
         load_checkpoint(path, {"model": model})
         freeze(model)
         result = (
-            self.source_matching(model, "test", qrep)
+            attack_scoring.source_matching(self, model, "test", qrep)
             if scenario == "p3"
             else evaluate_identity(
                 model,
@@ -364,91 +364,6 @@ class FinalStudy:
         return pairs
 
     @torch.no_grad()
-    def source_matching(self, model, role, representation="public", structure=None):
-        e = self.e
-        ds = e.data[role]
-        gallery = []
-        queries = []
-        for i in range(len(ds)):
-            b = collate([ds[i]], e.device)
-            gallery.append(
-                (
-                    b["id"][0],
-                    b["patient"][0],
-                    gray(b["x"]) if structure else model(b["x"]),
-                )
-            )
-            q = self.representation(role, representation)(b)
-            if q is not None:
-                if structure and q.shape[1] == 3:
-                    q = gray(q)
-                queries.append(
-                    (b["id"][0], b["patient"][0], q if structure else model(q))
-                )
-        outputs = {}
-        for mode in (structure,) if structure else ("cosine", "pair"):
-            rows = []
-            for name, pid, q in queries:
-                scores = []
-                for gname, gpid, g in gallery:
-                    if mode == "ncc":
-                        score = float(ncc(q, g))
-                    elif mode == "ssim":
-                        score = float(ssim_values(q, g, torch.ones_like(q))[0])
-                    elif mode == "cosine":
-                        score = float((q["embedding"] * g["embedding"]).sum())
-                    else:
-                        score = float(model.pair(q["h"], g["h"]))
-                    scores.append(score)
-                order = sorted(
-                    range(len(gallery)),
-                    key=lambda j: (
-                        -scores[j],
-                        hashlib.sha256(gallery[j][0].encode()).digest(),
-                    ),
-                )
-                rows.append(
-                    {
-                        "id": name,
-                        "patient": pid,
-                        "source_rank1": float(gallery[order[0]][0] == name),
-                        "patient_rank1": float(gallery[order[0]][1] == pid),
-                        "source_rank5": float(
-                            any(gallery[j][0] == name for j in order[:5])
-                        ),
-                        "source_chance": 1 / len(gallery),
-                        "patient_chance": sum(gp == pid for _, gp, _ in gallery)
-                        / len(gallery),
-                    }
-                )
-            groups = defaultdict(list)
-            for row in rows:
-                groups[row["patient"]].append(row)
-            summary = (
-                {
-                    key: float(
-                        np.mean(
-                            [
-                                np.mean([r[key] for r in group])
-                                for group in groups.values()
-                            ]
-                        )
-                    )
-                    for key in (
-                        "source_rank1",
-                        "patient_rank1",
-                        "source_rank5",
-                        "source_chance",
-                        "patient_chance",
-                    )
-                }
-                if groups
-                else {}
-            )
-            summary.update(rows=rows, gallery_size=len(gallery), query_size=len(rows))
-            outputs[mode] = summary
-        return outputs
-
     def reconstruction_attack(self, latent=False, with_metadata=False):
         e = self.e
         model = ReconstructionAttack(latent, with_metadata).to(e.device)
@@ -480,7 +395,9 @@ class FinalStudy:
                     with torch.no_grad():
                         z = self.system.decompose(b["x"])[1]
                         r = rows_by_id[b["id"][0]]["level"]
-                        zq = ste_round(z / e.profile.step(r)) * e.profile.step(r)
+                        zq = dequantize_latent(
+                            quantize_latent(z, e.profile.step(r)), e.profile.step(r)
+                        )
                     rec = self.system.recover(g, pred)
                     loss = (
                         reconstruction(b["x"], rec, b["v"])
@@ -492,8 +409,8 @@ class FinalStudy:
             schedule(opt, step, total)
             update(opt)
             if (step + 1) % 2000 == 0 or step + 1 == total:
-                metrics = self.reconstruction_scores(
-                    model, "val_select", latent, with_metadata
+                metrics = attack_scoring.reconstruction_scores(
+                    self, model, "val_select", latent, with_metadata
                 )
                 score = (
                     np.mean([r["quality"]["psnr"] for r in metrics]) if metrics else -1
@@ -510,65 +427,14 @@ class FinalStudy:
                     )
         require(path.exists(), "No reconstruction attack validation examples")
         load_checkpoint(path, {"model": model})
-        result = self.reconstruction_scores(model, "test", latent, with_metadata)
+        result = attack_scoring.reconstruction_scores(
+            self, model, "test", latent, with_metadata
+        )
         write_json(self.root / "attacks" / f"reconstruction-{name}.json", result)
         return result
 
     @torch.no_grad()
-    def reconstruction_scores(self, model, role, latent=False, with_metadata=False):
-        e = self.e
-        model.eval()
-        rows = []
-        for i in range(len(e.data[role])):
-            b = collate([e.data[role][i]], e.device)
-            g = self.public(role, b)
-            if g is None:
-                continue
-            if (
-                with_metadata
-                and not next(
-                    r for r in self.results[role]["rows"] if r["id"] == b["id"][0]
-                )["m_success"]
-            ):
-                continue
-            mb = (
-                metadata_tensor(b["metadata"], FIELDS, e.device)
-                if with_metadata
-                else None
-            )
-            pred = model(g, mb)
-            rec = self.system.recover(g, pred) if latent else pred
-            rows.append(
-                {
-                    "id": b["id"][0],
-                    "patient": b["patient"][0],
-                    "quality": quality(b["x"], rec, b["v"])[0],
-                }
-            )
-        return rows
-
     @torch.no_grad()
-    def public_side_features(self, g):
-        records, errors = logits_to_records(
-            self.system.comm.read(g)[0], self.e.profile.occupancy_threshold
-        )
-        result = g.new_zeros((1, 8))
-        for alpha in (0, 1):
-            try:
-                if errors[alpha]:
-                    continue
-                stream, r = reassemble(records, alpha)
-                if len(stream) < 88 or stream[:4] != b"MCR1":
-                    continue
-                result[0, 6 + alpha] = 1
-                if alpha == 0:
-                    result[0, 0] = len(stream) * 8 / 131072
-                    result[0, 1] = len([r for r in records if r.alpha == 0]) / 1024
-                    result[0, 2 + r] = 1
-            except Exception:
-                continue
-        return result
-
     def attributes(self):
         """Auxiliary age/gender models: image, public fields, and their combination."""
         from ccrr.training.attribute_study import AttributeStudy
@@ -589,8 +455,8 @@ class FinalStudy:
                             self.identity_attack(family, scenario, direction, rep)
                         )
             for structure in ("ncc", "ssim"):
-                attacks[f"{rep}-p3-{structure}"] = self.source_matching(
-                    None, "test", rep, structure
+                attacks[f"{rep}-p3-{structure}"] = attack_scoring.source_matching(
+                    self, None, "test", rep, structure
                 )
         from ccrr.evaluation.structural_attacks import evaluate as evaluate_structure
 

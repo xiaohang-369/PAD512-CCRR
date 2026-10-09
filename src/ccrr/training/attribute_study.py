@@ -1,37 +1,17 @@
+from ccrr.evaluation import attack_scoring
+from ccrr.evaluation.attacks import AttributeModel
+from ccrr.training.teachers import initialize_base
 from collections import defaultdict
 import numpy as np
 import torch
-from torch import nn
 from torch.nn import functional as F
 from sklearn.metrics import balanced_accuracy_score
-from ccrr.teachers.adapters import IdentityModel, freeze_bn
-from ccrr.evaluation.attacks import SideChannelAttack
+from ccrr.teachers.adapters import freeze_bn
 from ccrr.data.pad import collate, rng_for
-from ccrr.runtime.support import (
-    optimizer,
-    schedule,
-    update,
-    write_json,
-    save_checkpoint,
-    load_checkpoint,
-)
+from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.runtime.support import write_json
+from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.errors import require
-
-
-class AttributeModel(nn.Module):
-    def __init__(self, kind, outputs):
-        super().__init__()
-        self.kind = kind
-        if kind != "side":
-            self.image = IdentityModel(1)
-        if kind == "image":
-            self.head = nn.Linear(2048, outputs)
-        else:
-            self.head = SideChannelAttack(outputs, 2048 if kind == "combined" else 0)
-
-    def forward(self, x, side):
-        emb = self.image(x)["embedding"] if self.kind != "side" else None
-        return self.head(emb) if self.kind == "image" else self.head(side, emb)
 
 
 class AttributeStudy:
@@ -81,7 +61,7 @@ class AttributeStudy:
         g = self.study.public(role, b)
         with torch.no_grad():
             side = (
-                self.study.public_side_features(g)
+                attack_scoring.public_side_features(self.study, g)
                 if g is not None
                 else x.new_zeros((1, 8))
             )
@@ -154,7 +134,7 @@ class AttributeStudy:
                         kind, 1 if task == "age" else len(self.gender)
                     ).to(e.device)
                     if kind != "side":
-                        e.initialize_base(m.image, "resnet50")
+                        initialize_base(e, m.image, "resnet50")
                     opt = optimizer([m], [1e-4])
                     best = float("inf") if task == "age" else -1
                     path = self.study.root / "checkpoints" / f"attribute-{name}.pt"

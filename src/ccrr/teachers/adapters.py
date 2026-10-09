@@ -6,7 +6,7 @@ from torchvision import models
 from ccrr.data.pad import adapt
 from ccrr.config import sha256
 from ccrr.errors import require
-from ccrr.representation.purifier import SymmetricHead
+from ccrr.tensor_ops import SymmetricHead
 
 
 def freeze(module):

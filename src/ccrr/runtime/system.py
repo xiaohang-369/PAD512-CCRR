@@ -1,3 +1,4 @@
+from ccrr.codec.quantization import quantize_latent, dequantize_latent
 from dataclasses import dataclass
 import numpy as np
 from PIL import Image
@@ -8,7 +9,7 @@ from ccrr.errors import CCRRError, Status, require
 from ccrr.representation.inn import INN
 from ccrr.communication.network import Communication
 from ccrr.representation.inn import FixedGrayDecomposition
-from ccrr.tensor_ops import q8, public_adapter, ste_round
+from ccrr.tensor_ops import q8, public_adapter
 from ccrr.codec.entropy import EntropyModel, SourceCodec
 from ccrr.codec import metadata
 from ccrr.codec.crypto import seal, open_stream
@@ -57,8 +58,8 @@ class CCRR(nn.Module):
 
     def quantized(self, x, level):
         u, z, g = self.decompose(x)
-        n = ste_round(z / self.profile.step(level))
-        return u, z, g, n, n * self.profile.step(level)
+        n = quantize_latent(z, self.profile.step(level))
+        return u, z, g, n, dequantize_latent(n, self.profile.step(level))
 
     def payload(self, z, row, credentials, allocator, budgets, level_order=None):
         require(self.codec is not None, "Bind a snapshot before encoding")
@@ -90,7 +91,7 @@ class CCRR(nn.Module):
                 "m_records": mr,
                 "level": level,
                 "n": n,
-                "zq": n * self.profile.step(level),
+                "zq": dequantize_latent(n, self.profile.step(level)),
                 "rejected": failures,
             }
         raise CCRRError(

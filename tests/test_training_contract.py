@@ -7,13 +7,8 @@ from ccrr.evaluation.attacks import ReconstructionAttack
 from ccrr.codec.entropy import EntropyModel
 from ccrr.training.losses import reconstruction, saturation, gray_loss
 from ccrr.tensor_ops import q8, ste_round, public_adapter
-from ccrr.runtime.support import (
-    optimizer,
-    schedule,
-    update,
-    save_checkpoint,
-    load_checkpoint,
-)
+from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.data.pad import PairSampler
 from ccrr.evaluation.gates import deployment_gate
 from ccrr.runtime.preflight import inspect

@@ -1,3 +1,4 @@
+from ccrr.tensor_ops import SymmetricHead
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -56,15 +57,6 @@ class Purifier(nn.Module):
             ),
             "logits": self.clinical(pooled(semantic, v)),
         }
-
-
-class SymmetricHead(nn.Module):
-    def __init__(self, dim=256):
-        super().__init__()
-        self.net = nn.Sequential(nn.Linear(dim * 2, 128), nn.GELU(), nn.Linear(128, 1))
-
-    def forward(self, a, b):
-        return self.net(torch.cat(((a - b).abs(), a * b), 1)).squeeze(1)
 
 
 class SemanticAttacker(nn.Module):

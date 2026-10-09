@@ -1,5 +1,7 @@
 """Independent readout acceptance for the frozen Purifier (design section 7.7)."""
 
+from ccrr.evaluation.attacks import PooledAttacker
+
 from collections import Counter
 import json
 import numpy as np
@@ -10,19 +12,9 @@ from sklearn.metrics import roc_auc_score
 from ccrr.data.pad import collate, rng_for
 from ccrr.tensor_ops import gray, pooled
 from ccrr.representation.purifier import SemanticAttacker
-from ccrr.runtime.support import optimizer, schedule, update, write_json
+from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.runtime.support import write_json
 from ccrr.evaluation.metrics import clinical, cluster_bootstrap
-
-
-class PooledAttacker(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.net = nn.Sequential(nn.Linear(1536, 256), nn.GELU(), nn.Linear(256, 1))
-
-    def forward(self, a, va, b, vb):
-        a = pooled(a, va)
-        b = pooled(b, vb)
-        return self.net(torch.cat(((a - b).abs(), a * b), 1)).squeeze(1)
 
 
 class FeatureAudit:

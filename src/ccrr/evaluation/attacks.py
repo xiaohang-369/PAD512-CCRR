@@ -1,3 +1,6 @@
+from ccrr.codec.quantization import dequantize_latent
+from ccrr.tensor_ops import pooled
+from ccrr.teachers.adapters import IdentityModel
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -96,9 +99,12 @@ def constant_latent_attack(system, g, level, map_symbol=False):
 
         freq = np.diff(system.codec.cdfs[level - 1], axis=1)[:, :511]
         best = torch.from_numpy(freq.argmax(1) - 255).to(g)
-        z = unpack(
-            best[None, :, None, None].expand(len(g), 128, p.size // 8, p.size // 8)
-        ) * p.step(level)
+        z = dequantize_latent(
+            unpack(
+                best[None, :, None, None].expand(len(g), 128, p.size // 8, p.size // 8)
+            ),
+            p.step(level),
+        )
     return system.recover(g, z)
 
 
@@ -120,3 +126,30 @@ def metadata_tensor(rows, fields, device):
             raw = list(row[key].encode("utf-8"))
             out[i, j, : len(raw)] = torch.tensor(raw, device=device)
     return out
+
+
+class PooledAttacker(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(1536, 256), nn.GELU(), nn.Linear(256, 1))
+
+    def forward(self, a, va, b, vb):
+        a = pooled(a, va)
+        b = pooled(b, vb)
+        return self.net(torch.cat(((a - b).abs(), a * b), 1)).squeeze(1)
+
+
+class AttributeModel(nn.Module):
+    def __init__(self, kind, outputs):
+        super().__init__()
+        self.kind = kind
+        if kind != "side":
+            self.image = IdentityModel(1)
+        if kind == "image":
+            self.head = nn.Linear(2048, outputs)
+        else:
+            self.head = SideChannelAttack(outputs, 2048 if kind == "combined" else 0)
+
+    def forward(self, x, side):
+        emb = self.image(x)["embedding"] if self.kind != "side" else None
+        return self.head(emb) if self.kind == "image" else self.head(side, emb)

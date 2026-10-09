@@ -209,7 +209,7 @@ def test_all_modules_import_and_cli_inspection():
     import importlib
 
     for name in (
-        "training.legacy",
+        "training.experiment",
         "training.final_study",
         "training.feature_audit",
         "training.attribute_study",

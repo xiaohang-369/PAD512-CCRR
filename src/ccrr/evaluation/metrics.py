@@ -11,7 +11,7 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from skimage.color import rgb2lab, deltaE_ciede2000
-from ccrr.training.losses import ssim_values
+from ccrr.tensor_ops import ssim_values
 
 
 def quality(x, rec, v):

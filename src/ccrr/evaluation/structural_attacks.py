@@ -5,7 +5,7 @@ import torch
 from ccrr.data.pad import collate
 from ccrr.tensor_ops import gray
 from ccrr.evaluation.attacks import ncc
-from ccrr.training.losses import ssim_values
+from ccrr.tensor_ops import ssim_values
 from ccrr.evaluation.metrics import verification, retrieval, pair_bootstrap
 from sklearn.metrics import roc_auc_score
 

@@ -133,3 +133,40 @@ def init_comm(m):
     elif isinstance(m, nn.Linear):
         nn.init.xavier_uniform_(m.weight)
         nn.init.zeros_(m.bias)
+
+
+class SymmetricHead(nn.Module):
+    def __init__(self, dim=256):
+        super().__init__()
+        self.net = nn.Sequential(nn.Linear(dim * 2, 128), nn.GELU(), nn.Linear(128, 1))
+
+    def forward(self, a, b):
+        return self.net(torch.cat(((a - b).abs(), a * b), 1)).squeeze(1)
+
+
+def masked_mean(x, v):
+    return (
+        (x * v).sum((1, 2, 3)) / (v.sum((1, 2, 3)) * x.shape[1]).clamp_min(1)
+    ).mean()
+
+
+def ssim_values(x, y, v):
+    c = x.shape[1]
+    n = torch.arange(11, device=x.device, dtype=x.dtype) - 5
+    w = torch.exp(-n * n / (2 * 1.5**2))
+    w = w / w.sum()
+    kernel = (w[:, None] * w[None, :])[None, None].expand(c, 1, 11, 11)
+    conv = lambda z: F.conv2d(z, kernel, groups=c)
+    mx, my = conv(x), conv(y)
+    vx = (conv(x * x) - mx * mx).clamp_min(0)
+    vy = (conv(y * y) - my * my).clamp_min(0)
+    cov = conv(x * y) - mx * my
+    s = (
+        (2 * mx * my + 0.01**2)
+        * (2 * cov + 0.03**2)
+        / ((mx * mx + my * my + 0.01**2) * (vx + vy + 0.03**2))
+    )
+    valid = F.avg_pool2d(v, 11, stride=1) >= 1 - 1e-7
+    count = valid.sum((1, 2, 3)) * c
+    value = (s * valid).sum((1, 2, 3)) / count.clamp_min(1)
+    return value, count > 0

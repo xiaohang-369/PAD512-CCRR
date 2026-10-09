@@ -1,9 +1,10 @@
+from ccrr.codec.quantization import quantize_latent, dequantize_latent
 import struct
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-from ccrr.tensor_ops import pack, unpack, ste_round
+from ccrr.tensor_ops import pack, unpack
 from ccrr.errors import require, Status
 from ccrr.codec import rans
 
@@ -35,7 +36,7 @@ class EntropyModel(nn.Module):
         )
 
     def rate(self, z, level, step):
-        n = pack(ste_round(z / step))
+        n = pack(quantize_latent(z, step))
         return (
             -self.log_pmf(n, level).sum((1, 2, 3))
             / np.log(2)
@@ -91,7 +92,7 @@ class SourceCodec:
         self.indexes = np.repeat(np.arange(128), (profile.size // 8) ** 2).tolist()
 
     def quantize(self, z, level):
-        n = ste_round(z / self.profile.step(level))
+        n = quantize_latent(z, self.profile.step(level))
         require(
             torch.isfinite(n).all() and n.abs().max() <= self.profile.symbol_bound,
             "Latent out of range",
@@ -131,4 +132,6 @@ class SourceCodec:
         packed = torch.from_numpy(n.reshape((1, *self.profile.packed_shape))).to(
             device=device
         )
-        return unpack(packed), unpack(packed.float()) * self.profile.step(level)
+        return unpack(packed), dequantize_latent(
+            unpack(packed.float()), self.profile.step(level)
+        )
