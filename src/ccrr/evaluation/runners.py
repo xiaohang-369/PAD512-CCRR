@@ -69,6 +69,7 @@ def evaluate_identity(
     allowed_queries=None,
     allowed_gallery=None,
     thresholds=None,
+    teacher=False,
 ):
     model.eval()
     features = {}
@@ -100,8 +101,25 @@ def evaluate_identity(
                     or image_id in allowed_gallery
                 )
             ):
-                f = model(x)  # attacks use the public full canvas, no sender V
+                f = (
+                    model(x, b["rect"]) if teacher else model(x)
+                )  # public attacks have no sender V
                 dest[image_id] = {k: f[k].detach() for k in ("embedding", "h")}
+    if teacher:
+        from ccrr.evaluation.teachers import teacher_identity_scores
+
+        require(
+            allowed_queries is None and allowed_gallery is None,
+            "Teacher uses full frozen cohort",
+        )
+        return teacher_identity_scores(
+            protocol,
+            data.rows,
+            features,
+            gallery_features,
+            bootstrap=bootstrap,
+            threshold=None if thresholds is None else thresholds.get("cosine"),
+        )
     patient_query_count = Counter(
         q["patient_id"] for q in protocol["queries"] if q["query"] in features
     )
@@ -302,3 +320,63 @@ def evaluate_system(
     }
     write_json(outdir / "system_results.json", result)
     return result
+
+
+def dual_report(model, data, device, intervals=True):
+    from ccrr.evaluation.teachers import clinical_intervals
+
+    reports = [
+        evaluate_classifier(model, data, device, view)
+        for view in (None, lambda b: gray(b["x"]))
+    ]
+    if intervals:
+        reports = [clinical_intervals(r) for r in reports]
+    return reports
+
+
+def reid_capability(experiment, model):
+    from ccrr.evaluation.teachers import reid_gate
+    from ccrr.evaluation.comparisons import threshold_at_fpr
+
+    output = {}
+    for scenario in ("p1", "p2"):
+        reports = []
+        for qa, ga in [
+            (None, None),
+            (lambda b: gray(b["x"]), None),
+            (lambda b: gray(b["x"]), lambda b: gray(b["x"])),
+        ]:
+            tune = evaluate_identity(
+                model,
+                experiment.data["val_tune"],
+                experiment.device,
+                scenario,
+                qa,
+                ga,
+                teacher=True,
+            )
+            d = tune["cosine"]["score_details"]
+            threshold = threshold_at_fpr(d["labels"], d["scores"], d["weights"])
+            r = evaluate_identity(
+                model,
+                experiment.data["val_select"],
+                experiment.device,
+                scenario,
+                qa,
+                ga,
+                bootstrap=True,
+                thresholds={"cosine": threshold},
+                teacher=True,
+            )
+            r["threshold"] = threshold
+            r["threshold_role"] = "val_tune"
+            reports.append(r)
+        output[scenario] = {"reports": reports, **reid_gate(reports)}
+    output["allowed_role"] = (
+        "cross-lesion patient teacher"
+        if output["p1"]["passed"]
+        else "lesion association only"
+        if output["p2"]["passed"]
+        else "no established identity capability"
+    )
+    return output

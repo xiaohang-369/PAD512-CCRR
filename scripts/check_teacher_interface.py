@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import torch
 from torchvision import models
 from ccrr.config import sha256
+from ccrr.runtime.support import seed_everything, environment
 from ccrr.data.pad import adapt
 from ccrr.teachers.adapters import (
     ClinicalModel,
@@ -97,7 +98,7 @@ def load_real_model(args, report):
 
 def check_inputs(model, kind):
     cases = []
-    rgb = torch.rand(1, 3, 512, 512)
+    rgb = torch.rand(1, 3, 512, 512, device=next(model.parameters()).device)
     for rect in [(0, 0, 512, 512), (0, 64, 512, 384)]:
         source = rgb.clone()
         if rect[1]:
@@ -186,15 +187,17 @@ def main():
         "--source", help="Only PanDerm: audited official modeling_finetune.py"
     )
     p.add_argument("--out", required=True)
+    p.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     args = p.parse_args()
     torch.set_num_threads(2)
-    torch.manual_seed(20261008)
+    seed_everything(20261008)
     start = time.monotonic()
     root = Path(__file__).resolve().parents[1]
     report = {
         "scope": "Real weights; synthetic inputs; no medical capability acceptance",
         "model": args.model,
-        "device": "cpu",
+        "device": args.device,
+        "environment": environment(),
         "batch_size": 1,
         "weights": str(Path(args.weights).resolve()),
         "sha256": args.sha256,
@@ -211,11 +214,21 @@ def main():
     try:
         assert sha256(args.weights) == args.sha256, "Weight hash mismatch"
         report["weight_bytes"] = Path(args.weights).stat().st_size
-        model = load_real_model(args, report)
+        if args.device == "cuda":
+            assert torch.cuda.is_available(), "CUDA unavailable"
+            torch.cuda.reset_peak_memory_stats()
+        model = load_real_model(args, report).to(args.device)
         before = fingerprints(model)
         report["forward_backward"] = check_inputs(model, args.model)
         assert fingerprints(model) == before and not model.training
         report.update(passed=True, parameters_and_buffers_unchanged=True)
+        if args.device == "cuda":
+            torch.cuda.synchronize()
+            report["cuda_peak_allocated_bytes"] = torch.cuda.max_memory_allocated()
+            report["H100_validated"] = "H100" in torch.cuda.get_device_name(0)
+            report["H100_validation_scope"] = (
+                "batch-1 interface only; full training memory/throughput pending"
+            )
     except Exception as exc:
         report.update(passed=False, error_type=type(exc).__name__, error=str(exc))
         raise

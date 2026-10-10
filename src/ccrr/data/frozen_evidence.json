@@ -1,0 +1,97 @@
+{
+  "version": "PAD512-CCRR-v1.1",
+  "design_sha256": "6319564fce9923f01d34f367e2e46ee20b9bf2dc90e0ae6a094f2863b9c5a549",
+  "files": {
+    "raw/metadata.csv": "14d145235cedb022548257acb0d84dcd949e2c916f65d2baa7c38ed5339e9527",
+    "study_v1/manifests/clean_manifest.csv": "10bbc6bf164cb46f0818422c5f20cbe13dc528eff9bd5c02fe607b7ed7a67efd",
+    "study_v1/manifests/train.json": "dadc51aa007ab71e870f910f51e751e2c3bf3be16b831a78f31dec1ca7f29d88",
+    "study_v1/manifests/val.json": "ce77ba61e707b080aeacac8b2b9655c5357e9e66e10029f3c1a0bb2d3a5b1020",
+    "study_v1/manifests/test.json": "e1f79533868b324ec326be3e55578df8dd2a12b492be9833830b231c9e242bbc",
+    "study_v1/exclusions/excluded_images.csv": "d4bd8c9b55e2622f1c48913dc23f594e394e7a55de72a04b37033e60cdf5df96",
+    "study_v1/exclusions/near_duplicate_review.csv": "c5e4c5914117af89679aea7586bc238d4cc9e20a967ecce609c694e0e4a12013",
+    "protocol_audit_20261009/roles/calibration.json": "449c0f506ab0e95503ce857e1cc46a19da45befc334d7810e645d3ee54b77d28",
+    "protocol_audit_20261009/roles/fit.json": "fb4e5432dd5335e9d111f1ba58783484d9199600204a93b5cc7e39625a72543a",
+    "protocol_audit_20261009/roles/test.json": "70dbc52b98a517de88d0b29be61cf8c85fcab50ab2bd16d011629e3a405f17d0",
+    "protocol_audit_20261009/roles/val_select.json": "ae95eaca6fddf152ec55e7c8167be5b33c89ce9177cca2a91ae0851b93860583",
+    "protocol_audit_20261009/roles/val_tune.json": "f3063e0b5fb7217c27fec9085ede7a88b11f9ac61cd3c9484e83ad1fe0cbde6d",
+    "protocol_audit_20261009/pair_protocol/calibration_p1.json": "e5570243fbdd204818f738bf25479aeda5b0fa7c25f8dba2c70b20a28c51c748",
+    "protocol_audit_20261009/pair_protocol/calibration_p2.json": "379ff69c0565a97c76432a94d4c4b3f09b7e4eca2bca429b0f44b58bf5f7494f",
+    "protocol_audit_20261009/pair_protocol/fit_local_identity_negative_pairs.json": "1469ce62f53fa931f7960c3d7505bedae4a9277516516ddcccf347a8c1b79ed5",
+    "protocol_audit_20261009/pair_protocol/fit_p1.json": "deaeadd073bb1bae4b5ab62489ea043086aea37ff86bfa8fc2a63cf61e6a7fe3",
+    "protocol_audit_20261009/pair_protocol/fit_p2.json": "8c63eaa2c28134ec305e9618c95d1a311dc5fb4062266c9bb7b28a6221bf31aa",
+    "protocol_audit_20261009/pair_protocol/test_p1.json": "8a360de838592e57c9beaf9dcb2f6778ee279e58af4ba3c9360387d7cd50dfe1",
+    "protocol_audit_20261009/pair_protocol/test_p2.json": "81b6cb5d275bfb7aee5e10c3829d91065c22be6531dedfa99dfe5f1fb90b5b02",
+    "protocol_audit_20261009/pair_protocol/val_select_p1.json": "61e04030ae33d6b344e1e0d89bdc529b666b274af5977be5994d2b705681708b",
+    "protocol_audit_20261009/pair_protocol/val_select_p2.json": "0df4dcea8348a9175260d449a510afbfa26460f6d98c086ec865513a1a198491",
+    "protocol_audit_20261009/pair_protocol/val_tune_p1.json": "43f97a56e61d98f12738f543f29be384e581822915af0ebab2478f57ce823e2d",
+    "protocol_audit_20261009/pair_protocol/val_tune_p2.json": "ddfda550de23392a2b20d1e683c0379d96cf482b76460c03244dbc347cacc2d5",
+    "protocol_audit_20261009/preprocessing_inventory.json": "98a9a647c720382ed2a1bd914bf899b40d3708d6b1a6958331141147a50e1574",
+    "protocol_audit_20261009/image_inventory.json": "ab602893bdc1079d30350044b0623526f3925453057374f48a4b6c444cb0da74",
+    "protocol_audit_20261009/evidence_manifest.json": "eeca7664ac5df74ce2f169d657e9f664bbae97d2727512fd2bd748d5fc64846e",
+    "protocol_audit_20261009/final_data_audit.json": "ff6da7b4f75aec9c864e23f2faf128fcbcb11ace8d61af1b428f0f18cef8f934",
+    "protocol_audit_20261009/visual_review_20261009.json": "546dfa5050a835011beb18ac88fcc4fcc7d38a0b92fff8ee1c42f0c1b548e427",
+    "protocol_audit_20261009/review_completion.json": "7dd068e78c19cfd7a436f5a9899e5ce8f116b1a49060acb85c07693f482a16f1"
+  },
+  "counts": {
+    "fit": {
+      "images": 1433,
+      "patients": 863,
+      "class_n": [
+        458,
+        535,
+        32,
+        158,
+        106,
+        144
+      ]
+    },
+    "calibration": {
+      "images": 154,
+      "patients": 96,
+      "class_n": [
+        47,
+        50,
+        4,
+        13,
+        21,
+        19
+      ]
+    },
+    "val_tune": {
+      "images": 169,
+      "patients": 102,
+      "class_n": [
+        48,
+        70,
+        3,
+        23,
+        12,
+        13
+      ]
+    },
+    "val_select": {
+      "images": 170,
+      "patients": 103,
+      "class_n": [
+        61,
+        54,
+        5,
+        13,
+        15,
+        22
+      ]
+    },
+    "test": {
+      "images": 338,
+      "patients": 206,
+      "class_n": [
+        108,
+        124,
+        8,
+        36,
+        27,
+        35
+      ]
+    }
+  }
+}

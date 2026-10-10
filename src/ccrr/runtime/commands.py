@@ -48,16 +48,29 @@ def preflight(args):
     from ccrr.runtime.preflight import inspect
 
     cfg = load_config(args.config)
-    report = inspect(cfg)
+    report = inspect(cfg, getattr(args, "stage", "all"))
     write_json(Path(cfg["output"]) / "preflight.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report["ready_for_teacher_training"] else 2
+    return 0 if report["ready_for_stage"] else 2
 
 
 def train(args):
     from ccrr.training.experiment import Experiment
 
-    e = Experiment(load_config(args.config))
+    cfg = load_config(args.config)
+    require(not args.resume or args.stage == "A", "--resume is implemented only for A")
+    cfg["resume_a"] = args.resume
+    from ccrr.runtime.preflight import inspect as check
+
+    report = check(cfg, args.stage)
+    write_json(Path(cfg["output"]) / "preflight.json", report)
+    require(report["ready_for_stage"], f"Preflight incomplete: {report['missing']}")
+    if args.stage in ("A", "all"):
+        from ccrr.training.a_state import validate_a_output
+
+        validate_a_output(cfg)
+    e = Experiment(cfg)
+    e._preflight_stage = args.stage
     e.run(args.stage)
 
     return 0

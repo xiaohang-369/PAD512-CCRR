@@ -1,6 +1,5 @@
 """Stage A: teacher adaptation, training and selection."""
 
-import copy
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -20,13 +19,22 @@ from ccrr.training.losses import (
     weighted_cross_entropy,
 )
 from ccrr.runtime.support import write_json
-from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.training.optimization import optimizer, TeacherSchedule, update
+from ccrr.training.a_state import AProgress
+from ccrr.evaluation.teachers import (
+    clinical_intervals,
+    clinical_gate,
+    PatchProbe,
+    paired_gray_change,
+)
+from ccrr.teachers.capability import mfm_interface
 from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.evaluation.runners import (
     evaluate_classifier,
     evaluate_identity,
+    dual_report,
+    reid_capability,
 )
-from ccrr.evaluation.metrics import clinical
 from ccrr.errors import require
 
 
@@ -74,10 +82,20 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
                     }
                 )
     opt = torch.optim.AdamW(groups, betas=(0.9, 0.999), eps=1e-8)
-    best = -float("inf")
+    scheduler = TeacherSchedule(opt, budget, classifier=True)
+    progress = (
+        AProgress(experiment, name, {"model": model}, opt, scheduler)
+        if not independent
+        else None
+    )
+    best = (
+        -float("inf")
+        if progress is None or progress.selection["score"] is None
+        else progress.selection["score"]
+    )
     best_path = experiment.output / "checkpoints" / f"{name}.pt"
-    last_report = None
-    for step in range(budget):
+    last_report = None if progress is None else progress.selection["reports"]
+    for step in range(0 if progress is None else progress.start, budget):
         rng = rng_for(experiment.seed, name, "images", step)
         model.train()
         freeze_bn(model)
@@ -123,14 +141,11 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
                 count += 1
         if not count:
             continue
-        schedule(opt, step, budget)
-        for group in opt.param_groups:
-            if not group["head"]:
-                if step < 500:
-                    group["lr"] = 0
-                elif step < 750:
-                    group["lr"] = group["lr_max"] * (0.01 + 0.99 * (step - 500) / 249)
+        if progress is None:
+            scheduler.next_step = step
+        scheduler.apply(step)
         norm = update(opt)
+        scheduler.advance()
         if (step + 1) % 100 == 0:
             experiment.log(name, step + 1, {"loss": total, "gradient_norm": norm})
         if (step + 1) % 500 == 0 or step + 1 == budget:
@@ -148,20 +163,32 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
                 r["macro_auroc"] if r["macro_auroc"] is not None else -float("inf")
                 for r in reports
             )
+            if progress is not None:
+                progress.select(None if score == -float("inf") else score, reports)
             if score > best:
-                best = score
-                last_report = reports
-                save_checkpoint(
-                    best_path,
-                    {"model": model},
-                    opt,
-                    step + 1,
-                    name,
-                    {"score": score, "independent": independent},
-                )
+                best, last_report = score, reports
+                if progress is None:
+                    save_checkpoint(
+                        best_path,
+                        {"model": model},
+                        opt,
+                        step + 1,
+                        name,
+                        {"score": score, "independent": independent},
+                    )
             write_json(
                 experiment.output / "validation" / f"{name}-{step + 1}.json", reports
             )
+        if progress is not None:
+            endpoint = (step + 1) % 500 == 0 or step + 1 == budget
+            if endpoint or (step + 1) % experiment.cfg.get("resume_interval", 100) == 0:
+                progress.save(endpoint)
+    if progress is not None:
+        best, last_report = progress.finish(best_path)
+        last_report = [clinical_intervals(r) for r in last_report]
+        write_json(
+            experiment.output / "validation" / f"{name}-selected.json", last_report
+        )
     require(best_path.exists(), f"{name}: no evaluable checkpoint")
     load_checkpoint(best_path, {"model": model})
     freeze(model)
@@ -169,7 +196,7 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
 
 
 def stage_a(experiment):
-    experiment.preflight()
+    experiment.preflight("A")
     score, report = train_classifier(
         experiment,
         experiment.clinical,
@@ -187,14 +214,19 @@ def stage_a(experiment):
             experiment.cfg["budgets"]["clinical"],
             [view],
         )
-        controls.append(s)
-    passed = score >= 0.75 and all(
-        report[j]["macro_auroc"] >= controls[j] - 0.03
-        and all(a is not None and a > 0.5 for a in report[j]["per_class_auroc"])
-        and all(v is not None and v > 0 for v in report[j]["recall"])
-        for j in range(2)
+        controls.append(r[0])
+        del m
+    gate = clinical_gate(report, controls)
+    experiment.mark(
+        "A-clinical",
+        gate["passed"],
+        {
+            "joint": report,
+            "controls": controls,
+            "gate": gate,
+            "gray_change": paired_gray_change(report),
+        },
     )
-    experiment.mark("A-clinical", passed, {"joint": report, "controls": controls})
     e = experiment.cfg["weights"]["panderm"]
     experiment.mfm = PanDerm(
         e["source"], e["source_sha256"], e["path"], e["sha256"]
@@ -203,32 +235,43 @@ def stage_a(experiment):
     initialize_base(experiment, experiment.reid, "resnet50")
     train_reid_teacher(experiment)
     initialize_base(experiment, experiment.pub_attacker, "resnet50")
+    from ccrr.teachers.freeze_record import write_freeze_record
+
+    write_freeze_record(experiment)
 
 
 def train_mfm_probe(experiment):
+    interface = mfm_interface(experiment.mfm, experiment.fit, experiment.device)
     head = nn.Linear(768, 6).to(experiment.device)
     opt = optimizer([head], [1e-3])
     total = experiment.cfg["budgets"]["mfm_probe"]
-    best = -1
-    best_state = None
-    # Frozen standardization statistics: equal images and RGB/gray domains.
-    sums = torch.zeros(768, device=experiment.device)
-    squares = sums.clone()
-    count = 0
-    with torch.no_grad():
-        for i in range(len(experiment.fit)):
-            b = collate([experiment.fit[i]], experiment.device)
-            for x in (b["x"], gray(b["x"])):
-                f, v, _ = experiment.mfm(x, b["rect"])
-                sums += pooled(f, v)[0]
-                squares += pooled(f.square(), v)[0]
-                count += 1
-    mean = sums / count
-    std = (squares / count - mean.square()).clamp_min(0).sqrt()
-    experiment.purifier.mean.copy_(mean[None, :, None, None])
-    experiment.purifier.std.copy_(std[None, :, None, None])
-    experiment.purifier.stats_ready.fill_(True)
-    for step in range(total):
+    scheduler = TeacherSchedule(opt, total)
+    progress = AProgress(
+        experiment,
+        "mfm_probe",
+        {"probe": head, "purifier": experiment.purifier},
+        opt,
+        scheduler,
+    )
+    if progress.start == 0:
+        sums = torch.zeros(768, device=experiment.device)
+        squares = sums.clone()
+        count = 0
+        with torch.no_grad():
+            for i in range(len(experiment.fit)):
+                b = collate([experiment.fit[i]], experiment.device)
+                for x in (b["x"], gray(b["x"])):
+                    f, v, _ = experiment.mfm(x, b["rect"])
+                    sums += pooled(f, v)[0]
+                    squares += pooled(f.square(), v)[0]
+                    count += 1
+        mean = sums / count
+        std = (squares / count - mean.square()).clamp_min(0).sqrt()
+        experiment.purifier.mean.copy_(mean[None, :, None, None])
+        experiment.purifier.std.copy_(std[None, :, None, None])
+        experiment.purifier.stats_ready.fill_(True)
+    for step in range(progress.start, total):
+        head.train()
         opt.zero_grad(set_to_none=True)
         rng = rng_for(experiment.seed, "mfm_probe", "images", step)
         ids = rng.integers(len(experiment.fit), size=16)
@@ -249,63 +292,75 @@ def train_mfm_probe(experiment):
                 with torch.no_grad():
                     f, v, _ = experiment.mfm(x, b["rect"])
                     h = pooled(f, v)
-                (
-                    weighted_cross_entropy(
-                        head(h), b["label"], experiment.weights, weight_sum=denom
-                    )
+                weighted_cross_entropy(
+                    head(h), b["label"], experiment.weights, weight_sum=denom
                 ).backward()
-        schedule(opt, step, total)
+        scheduler.apply(step)
         update(opt)
-        if (step + 1) % 250 == 0 or step + 1 == total:
-            reports = []
-            for gray_mode in (False, True):
-                ys = []
-                ps = []
-                with torch.no_grad():
-                    for i in range(len(experiment.data["val_select"])):
-                        b = collate(
-                            [experiment.data["val_select"][i]], experiment.device
-                        )
-                        f, v, _ = experiment.mfm(
-                            gray(b["x"]) if gray_mode else b["x"], b["rect"]
-                        )
-                        ys.append(int(b["label"][0]))
-                        ps.append(head(pooled(f, v)).softmax(1)[0].cpu().numpy())
-                reports.append(clinical(ys, ps))
-            score = min(r["macro_auroc"] or 0 for r in reports)
-            if score > best:
-                best = score
-                best_state = copy.deepcopy(head.state_dict())
-                best_reports = reports
-    head.load_state_dict(best_state)
-    save_checkpoint(
-        experiment.output / "checkpoints/mfm_probe.pt",
-        {"probe": head, "purifier": experiment.purifier},
-        None,
-        total,
-        "A-mfm",
-        {"score": best},
+        scheduler.advance()
+        endpoint = (step + 1) % 250 == 0 or step + 1 == total
+        if endpoint:
+            reports = dual_report(
+                PatchProbe(experiment.mfm, head),
+                experiment.data["val_select"],
+                experiment.device,
+                False,
+            )
+            scores = [r["macro_auroc"] for r in reports]
+            progress.select(
+                min(scores) if all(s is not None for s in scores) else None, reports
+            )
+            write_json(
+                experiment.output / "validation" / f"mfm_probe-{step + 1}.json", reports
+            )
+        if endpoint or (step + 1) % experiment.cfg.get("resume_interval", 100) == 0:
+            progress.save(endpoint)
+    _, reports = progress.finish(
+        experiment.output / "checkpoints/mfm_probe.pt", "A-mfm"
     )
-    experiment.mark("A-mfm", best >= 0.75, best_reports)
+    reports = [clinical_intervals(r) for r in reports]
+    gate = clinical_gate(reports, enforce_class_defects=False)
+    experiment.mark(
+        "A-mfm",
+        gate["passed"] and interface["passed"],
+        {
+            "domains": reports,
+            "gate": gate,
+            "interface": interface,
+            "gray_change": paired_gray_change(reports),
+            "selected_step": progress.selection["step"],
+        },
+    )
 
 
 def train_reid_teacher(experiment):
     model = experiment.reid
     opt = optimizer([model.model, model.classifier], [1e-4, 1e-3])
     total = experiment.cfg["budgets"]["reid"]
-    best = -1
     path = experiment.output / "checkpoints/reid.pt"
-    best_report = None
-    for step in range(total):
+    scheduler = TeacherSchedule(opt, total)
+    progress = AProgress(experiment, "reid", {"model": model}, opt, scheduler)
+    experiment.sampler.fallbacks = progress.audit["fallbacks"]
+    for step in range(progress.start, total):
         rng = rng_for(experiment.seed, "reid", "pairs", step)
         pairs = experiment.sampler.sample(rng)
         model.train()
         freeze_bn(model)
         opt.zero_grad(set_to_none=True)
+        sampled = []
         for a, b, s, scenario in pairs:
             ba = collate([experiment.fit[a]], experiment.device)
             bb = collate([experiment.fit[b]], experiment.device)
             domain = int(rng.integers(3))
+            sampled.append(
+                {
+                    "a": ba["id"][0],
+                    "b": bb["id"][0],
+                    "label": s,
+                    "scenario": scenario,
+                    "domain": domain,
+                }
+            )
             xa = gray(ba["x"]) if domain in (1, 2) else ba["x"]
             xb = gray(bb["x"]) if domain == 2 else bb["x"]
             if rng.random() < 0.5:
@@ -329,8 +384,21 @@ def train_reid_teacher(experiment):
                 ce + 0.5 * contrastive(fa["embedding"], fb["embedding"], label)
             ) / 16
             loss.backward()
-        schedule(opt, step, total)
+        scheduler.apply(step)
         update(opt)
+        scheduler.advance()
+        progress.audit["fallbacks"] = experiment.sampler.fallbacks
+        write_json(
+            experiment.output / "sampling" / f"reid-{step + 1}.json",
+            {
+                "pairs": sampled,
+                "fallbacks": experiment.sampler.fallbacks,
+                "unique_unordered_pairs": len(
+                    {tuple(sorted((r["a"], r["b"]))) for r in sampled}
+                ),
+                "pairs_n": len(sampled),
+            },
+        )
         if (step + 1) % 1000 == 0 or step + 1 == total:
             reports = [
                 evaluate_identity(
@@ -340,7 +408,8 @@ def train_reid_teacher(experiment):
                     "p1",
                     qa,
                     ga,
-                    bootstrap=True,
+                    bootstrap=False,
+                    teacher=True,
                 )
                 for qa, ga in [
                     (None, None),
@@ -348,24 +417,20 @@ def train_reid_teacher(experiment):
                     (lambda b: gray(b["x"]), lambda b: gray(b["x"])),
                 ]
             ]
-            score = min(r["cosine"].get("auroc", 0) for r in reports)
-            if score > best:
-                best = score
-                best_report = reports
-                save_checkpoint(
-                    path,
-                    {"model": model},
-                    opt,
-                    step + 1,
-                    "A-reid",
-                    {"score": score},
-                )
-    load_checkpoint(path, {"model": model})
+            values = [r["cosine"].get("auroc") for r in reports]
+            progress.select(
+                min(values) if all(v is not None for v in values) else None, reports
+            )
+            write_json(
+                experiment.output / "validation" / f"reid-{step + 1}.json", reports
+            )
+        endpoint = (step + 1) % 1000 == 0 or step + 1 == total
+        if endpoint or (step + 1) % experiment.cfg.get("resume_interval", 100) == 0:
+            progress.save(endpoint)
+    progress.finish(path, "A-reid")
     freeze(model)
-    passed = best >= 0.70 and all(
-        r["cosine"]["auroc_ci"]["interval"]
-        and r["cosine"]["auroc_ci"]["interval"][0] > 0.5
-        and r["cosine"]["auroc_ci"]["invalid_fraction"] <= 0.05
-        for r in best_report
-    )
-    experiment.mark("A-reid", passed, best_report)
+    report = reid_capability(experiment, model)
+    report["selected_step"] = progress.selection["step"]
+    write_json(experiment.output / "validation/reid-capability.json", report)
+    # P2 has its own status. Only P1 establishes cross-lesion patient supervision.
+    experiment.mark("A-reid", report["p1"]["passed"], report)

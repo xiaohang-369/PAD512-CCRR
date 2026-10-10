@@ -30,7 +30,8 @@ class Experiment:
             self.output.resolve() != Path(__file__).parents[3].resolve(),
             "Outputs belong outside source",
         )
-        write_json(self.output / "environment.json", environment())
+        if not config.get("resume_a"):
+            write_json(self.output / "environment.json", environment())
         require(
             self.device.type != "cuda" or torch.cuda.is_available(),
             "CUDA unavailable on this host; use CPU for engineering checks and the H100 for the formal run",
@@ -57,8 +58,10 @@ class Experiment:
         self.policies = {}
         self.risks = {}
         self.snapshot_index = 0
-        write_json(self.output / "config.json", config)
-        write_json(self.output / "environment.json", environment())
+        if not config.get("resume_a"):
+            write_json(self.output / "config.json", config)
+        if not config.get("resume_a"):
+            write_json(self.output / "environment.json", environment())
         write_json(
             self.output / "data_hashes.json",
             {
@@ -72,11 +75,13 @@ class Experiment:
             },
         )
 
-    def preflight(self):
+    def preflight(self, stage="all"):
         from ccrr.runtime.preflight import inspect
 
-        report = inspect(self.cfg)
-        report["ready"] = report["ready_for_teacher_training"]
+        if getattr(self, "_preflight_stage", None) in (stage, "all"):
+            return
+        report = inspect(self.cfg, stage)
+        report["ready"] = report["ready_for_stage"]
         report["training_started"] = False
         write_json(self.output / "preflight.json", report)
         require(report["ready"], f"Preflight incomplete: {report['missing']}")

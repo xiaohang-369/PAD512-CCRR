@@ -57,3 +57,45 @@ def update(opt):
     norm = torch.nn.utils.clip_grad_norm_(params, 1, error_if_nonfinite=True)
     opt.step()
     return float(norm)
+
+
+class TeacherSchedule:
+    """Stateful counter around the unchanged §26.1 schedule (next update index)."""
+
+    def __init__(self, opt, total, classifier=False):
+        self.opt, self.total, self.classifier = opt, total, classifier
+        self.next_step = 0
+
+    def apply(self, step):
+        require(step == self.next_step and step < self.total, "Scheduler step mismatch")
+        schedule(self.opt, step, self.total)
+        if self.classifier:
+            for group in self.opt.param_groups:
+                if not group["head"]:
+                    if step < 500:
+                        group["lr"] = 0
+                    elif step < 750:
+                        group["lr"] = group["lr_max"] * (
+                            0.01 + 0.99 * (step - 500) / 249
+                        )
+
+    def advance(self):
+        self.next_step += 1
+
+    def state_dict(self):
+        return {
+            "version": 1,
+            "total": self.total,
+            "classifier": self.classifier,
+            "next_step": self.next_step,
+        }
+
+    def load_state_dict(self, state):
+        require(
+            state["version"] == 1
+            and state["total"] == self.total
+            and state["classifier"] == self.classifier,
+            "Scheduler protocol mismatch",
+        )
+        require(0 <= state["next_step"] <= self.total, "Invalid scheduler position")
+        self.next_step = state["next_step"]

@@ -22,8 +22,18 @@ def main(argv=None):
         default="all",
         choices=["all", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
     )
+    x.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume the last durable A optimizer boundary",
+    )
     x = sub.add_parser("preflight")
     x.add_argument("--config", required=True)
+    x.add_argument(
+        "--stage",
+        choices=["all", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        default="all",
+    )
     x = sub.add_parser("audit-data")
     x.add_argument("--root", required=True)
     x.add_argument("--out", required=True)

@@ -11,3 +11,21 @@ __pycache__/
 
 .DS_Store
 .ruff_cache/
+
+# Local resources, patients and experiment products never belong in source control.
+/data/
+/raw/
+/study_v1/
+/protocol_audit_20261009/
+/weights/
+/resources/
+/outputs/
+/experiments/
+/runs/
+/private/
+/local/
+*.safetensors
+*.pem
+.env
+.env.*
+configs/*.local.yaml

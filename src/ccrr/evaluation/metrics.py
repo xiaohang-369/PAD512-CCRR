@@ -69,6 +69,7 @@ def clinical(y, p):
         ),
         "recall": [float(cm[i, i] / denom[i]) if denom[i] else None for i in range(6)],
         "class_n": denom.tolist(),
+        "confusion_matrix": cm.tolist(),
         "n": len(y),
     }
 

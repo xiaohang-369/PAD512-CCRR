@@ -16,3 +16,6 @@ ccrr = "ccrr.cli:main"
 where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+"ccrr.data" = ["frozen_evidence.json"]

@@ -1,10 +1,28 @@
 # PAD512-CCRR
 
-医学图像能力约束表示的首版研究系统，依据 `PAD512-CCRR-v1.1`。工程同时包含模型、教师与 Purifier、私有码流、独立凭证、神经读写、训练、标定和评价；统一入口是 `ccrr train --stage all`。
+医学图像能力约束表示的首版研究系统，依据 `PAD512-CCRR-v1.1`。工程同时包含模型、教师与 Purifier、私有码流、独立凭证、神经读写、训练、标定和评价；当前准备入口限定为 `ccrr train --stage A`，后续阶段仍有未闭合审查问题。
 
 **恢复契约：RGB 高保真近似恢复；认证成功后，选定量化等级的整数 latent 与 PAD-M1 字段精确恢复。** 代码和数值检查不能代替训练结果。此目录没有训练后的模型，也没有任何临床有效性、身份隐私或神经通信成功率的证明。
 
-## 当前：第一批代码正确性修复
+## 当前：A 阶段工程准入
+
+在真实教师接口验证基线 `24baab4` 上完成 D15/D18/D23 的 A 链路及 D09 的 A 恢复。完整工程回归 **169 passed，0 failed/skipped/xfail**（启用已核验原生 rANS 参考）。本地真实权重、五角色、512 预处理核验通过；真实任务能力与 H100 验证尚未执行。
+
+- [A 阶段修复证据、范围与风险](docs/06_A阶段训练准入修复报告.md)
+- [H100 逐步检查、A 启动及恢复](docs/07_H100_A阶段操作指南.md)
+- `configs/stage_a_h100.yaml` 是独立模板，真实路径和服务器接口报告须由用户核验后填写。
+
+```bash
+python -m ccrr.cli preflight --config /controlled/a.yaml --stage A
+# H100 检查和用户确认后执行正式训练：
+python -m ccrr.cli train --config /controlled/a.yaml --stage A
+# 同环境从最近持久 optimizer 边界恢复：
+python -m ccrr.cli train --config /controlled/a.yaml --stage A --resume
+```
+
+本轮网络参数结构不变，新写 `CCRR-CHECKPOINT-2`，兼容读取旧 v1 权重；旧 selected-only 文件不能作为完整 A 恢复状态。默认每 100 步及规定端点保存。B–J 恢复不在已验证范围。
+
+## 历史：第一批代码正确性修复
 
 在重构提交 `52665d5` 上建立独立分支 `fix/pad512-v1.1-correctness-batch1`，按最终稿修复 D01、D03、D04、D11、D12。最新完整工程验证为 **133 passed，0 failed，0 skipped，0 xfailed**（使用本机已有且核验摘要的原生编码参照）。原三个 strict xfail 已转为必须通过的回归测试。
 
@@ -38,8 +56,8 @@
 ```bash
 python -m pip install -e '.[test]'
 python -m ccrr.cli inspect --config configs/pad512.yaml
-python -m ccrr.cli preflight --config configs/pad512.yaml
-python -m ccrr.cli train --config configs/pad512.yaml --stage all
+python -m ccrr.cli preflight --config configs/stage_a_h100.yaml --stage A
+# 模板必须先填真实路径和已验证接口报告，再按新指南启动 A。
 ```
 
 `configs/pad512.yaml` 的权重项有意为空。填入经过核验的官方权重路径、SHA-256 和 PanDerm 固定源码；缺少资源时程序明确停止，不静默使用随机教师。官方 ImageNet 权重可用以下工具获取并生成**新的**配置文件：
@@ -57,7 +75,7 @@ PanDerm 必须使用设计指定的 Base 来源，不能替换为用本实验 va
 
 完整命令内部执行教师 → Purifier → 表示学习 → 通信 → 标定/联合训练 → 冻结终评。阶段是完整系统的训练依赖，不是取消教师或单独交付基础协议。未通过科学准入的阶段停止并写 `stopped.json` / `acceptance.json`，不会降低门槛继续制造“成功结果”。
 
-已有阶段产物可通过 `--stage A|B|C|D|E|F|G|H|I|J` 进入相应阶段。此入口重新开始该阶段，**不是任意中间 step 的自动恢复**；低层 checkpoint 工具保存并支持加载模型、优化器与 Torch RNG，完整阶段内断点恢复仍需在目标环境进行中断/续跑验证。
+已有阶段产物可通过 `--stage A|B|C|D|E|F|G|H|I|J` 进入相应阶段。A 现支持 `--resume`，保存 optimizer/scheduler/RNG/选点状态；其他阶段的 `--stage` 仍不是完整断点恢复。CUDA 位级恢复须按新指南在 H100 实测。
 
 四组预登记开发配置由 `scripts/run_registered_matrix.py` 生成。默认只写配置，显式 `--run` 才执行。先完成主实验，再进行消融或跨分科扩展。
 
@@ -100,7 +118,7 @@ Nonce 由 SQLite `WAL + synchronous=FULL + BEGIN IMMEDIATE` 预留。不要复�
 | `evaluation/` | 实际链路/开发选点/冻结攻击评分、指标、失败分母、患者统计 |
 | `tensor_ops.py`, `config.py`, `errors.py` | 共用张量与神经基础块、冻结配置、失败语义 |
 
-旧内部 Python import 路径已迁移，没有转发壳；CLI 参数和 checkpoint/state_dict 格式保持。训练、测试、发送端共用同一套量化、记录、编码与接收机制。
+旧内部 Python import 路径已迁移，没有转发壳；本轮扩展 CLI 和 checkpoint 容器 v2，模型 state_dict 键保持。训练、测试、发送端共用同一套量化、记录、编码与接收机制。
 
 LPIPS、FID 和 CLIP-IQA 不参与选型或临床准入。CLIP-IQA 需要提供固定版本官方实现的适配文件和权重；当前未运行这些探索性指标。跨分科数据仍需真实数据许可、标签映射、患者标识与新 metadata profile 核验，不能仅凭接口存在就声称跨分科实验完成。
 

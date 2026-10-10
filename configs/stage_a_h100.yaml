@@ -1,0 +1,65 @@
+# Fill report SHA-256 only after successful local H100 interface checks.
+# J-only base checkpoints are intentionally unset for stage A.
+experiment: PAD512-CCRR-v1.1
+seed: 20261008
+device: cuda
+output: /srv/ccrr/experiments/a-seed20261008
+data_root: /srv/ccrr/PAD-UFES-20
+profile:
+  size: 512
+  research: true
+batch_images: 8
+batch_teacher: 16
+batch_pairs: 16
+microbatch: 1
+patch_batch: 16
+lambda_rate: 0.01
+lambda_privacy: 0.1
+weights:
+  efficientnet_b0:
+    path: /srv/ccrr/resources/weights/efficientnet_b0_rwightman-7f5810bc.pth
+    sha256: 7f5810bc96def8f7552d5b7e68d53c4786f81167d28291b21c0d90e1fca14934
+  resnet50:
+    path: /srv/ccrr/resources/weights/resnet50-11ad3fa6.pth
+    sha256: 11ad3fa62ca79e40addfd354a8ec4b7c75143b3038b8d2a807fbc68deab379ca
+  convnext_tiny:
+    path: null
+    sha256: null
+  swin_t:
+    path: null
+    sha256: null
+  panderm:
+    path: /srv/ccrr/resources/weights/panderm_bb_data6_checkpoint-499.pth
+    sha256: be1e0fb108b3bc58721cb5195f136c948160799438f222acf1fd142230ac1ff1
+    source: /srv/ccrr/PAD-UFES-20/protocol_audit_20261009/official_sources/panderm_classification_models_modeling_finetune.py
+    source_sha256: 63fbb03283bb5d61ebd24e4790b66f3495996cc37f000f7003eec0a277bd1ab1
+    overlap_audit: unknown
+    source_commit: fd7a80748ba7fc3e203fed88f909f4689d0d6f24
+budgets:
+  clinical: 5000
+  mfm_probe: 2000
+  reid: 10000
+  purifier: 10000
+  recovery: 10000
+  representation: 20000
+  multirate: 10000
+  communication: 20000
+  heads: 2000
+  joint_a: 10000
+  joint_b: 2000
+  evaluator: 5000
+  attacker: 10000
+  reconstruction_attack: 20000
+joint_b: false
+bootstrap_repetitions: 2000
+resume_interval: 100
+interface_reports:
+  efficientnet_b0:
+    path: /srv/ccrr/checks/efficientnet_b0.json
+    sha256: null
+  resnet50:
+    path: /srv/ccrr/checks/resnet50.json
+    sha256: null
+  panderm:
+    path: /srv/ccrr/checks/panderm.json
+    sha256: null
