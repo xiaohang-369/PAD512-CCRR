@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -34,6 +35,31 @@ def load_weights(model, path, expected_hash, allowed_missing=(), allowed_unexpec
         f"Weight key mismatch: {missing}, {unexpected}",
     )
     return {"sha256": expected_hash, "missing": missing, "unexpected": unexpected}
+
+
+def load_panderm_source(source, source_hash):
+    """Import hash-pinned source using Python's module-registration contract.
+
+    timm's registration decorator resolves functions through sys.modules during
+    execution. Cache by full source digest; failed imports leave no partial module.
+    """
+    require(sha256(source) == source_hash, "PanDerm source hash mismatch")
+    name = "ccrr_official_panderm_" + source_hash
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, source)
+    require(
+        spec is not None and spec.loader is not None,
+        "PanDerm source loader unavailable",
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop(name, None)
+        raise
+    return module
 
 
 class ClinicalModel(nn.Module):
@@ -125,10 +151,7 @@ class PanDerm(nn.Module):
 
     def __init__(self, source, source_hash, weights, weights_hash):
         super().__init__()
-        require(sha256(source) == source_hash, "PanDerm source hash mismatch")
-        spec = importlib.util.spec_from_file_location("ccrr_official_panderm", source)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = load_panderm_source(source, source_hash)
         self.model = mod.panderm_base_patch16_224()
         load_weights(
             self.model,
