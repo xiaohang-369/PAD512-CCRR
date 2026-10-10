@@ -1,7 +1,0 @@
-............xxx.............................                             [100%]
-- generated xml file: /Users/zhuyanghang/Desktop/论文/ccrr/verification/refactor/pytest.xml -
-=========================== short test summary info ============================
-XFAIL tests/test_known_design_gaps.py::test_receiver_rejects_occupancy_hole - D01: design 22.3 forbids occupancy holes
-XFAIL tests/test_known_design_gaps.py::test_weighted_clinical_loss_is_invariant_to_microbatch_partition - D03: design 26.2 requires effective-batch weighted CE
-XFAIL tests/test_known_design_gaps.py::test_clinical_risk_js_uses_design_unit_interval - D04: design 8.5 JS is divided by ln(2)
-41 passed, 3 xfailed in 6.78s

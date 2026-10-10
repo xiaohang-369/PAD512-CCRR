@@ -16,7 +16,10 @@ import yaml
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default="verification/refactor")
+    parser.add_argument("--out", required=True, help="Directory for new check results")
+    parser.add_argument(
+        "--baseline", help="Optional existing Git baseline for architecture"
+    )
     parser.add_argument("--reference-ans")
     parser.add_argument("--reference-sha256")
     args = parser.parse_args()
@@ -24,6 +27,10 @@ def main():
     out = (root / args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
+    # Check this checkout even when the existing environment has another editable install.
+    env["PYTHONPATH"] = str(root / "src") + (
+        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+    )
     reference = None
     if args.reference_ans:
         path = Path(args.reference_ans).resolve()
@@ -52,6 +59,16 @@ def main():
         return result
 
     py = sys.executable
+    check(
+        "source_import",
+        [
+            py,
+            "-c",
+            "from pathlib import Path; import ccrr; "
+            "p = Path(ccrr.__file__).resolve(); print(p); "
+            "assert p == Path('src/ccrr/__init__.py').resolve()",
+        ],
+    )
     check("dependency_consistency", [py, "-m", "pip", "check"])
     check(
         "static_names",
@@ -99,10 +116,15 @@ def main():
             (out / "smoke512.json").write_text(
                 json.dumps(smoke_report, indent=2) + "\n"
             )
-    check(
-        "architecture",
-        [py, "scripts/audit_architecture.py", "--out", str(out / "architecture.json")],
-    )
+    architecture = [
+        py,
+        "scripts/audit_architecture.py",
+        "--out",
+        str(out / "architecture.json"),
+    ]
+    if args.baseline:
+        architecture.extend(["--baseline", args.baseline])
+    check("architecture", architecture)
     suites = ET.parse(out / "pytest.xml").getroot().findall("testsuite")
     report = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),

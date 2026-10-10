@@ -29,3 +29,9 @@ __pycache__/
 .env
 .env.*
 configs/*.local.yaml
+
+# Internal research records stay on the local machine.
+/docs/
+/verification/
+/scripts/verify_implementation.py
+/scripts/verify_refactor_equivalence.py

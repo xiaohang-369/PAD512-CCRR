@@ -1,8 +1,8 @@
 experiment: PAD512-CCRR-v1.1
 seed: 20261008
 device: cuda
-output: /Users/zhuyanghang/Desktop/CCRR-experiments/pad512-seed20261008
-data_root: /Users/zhuyanghang/Desktop/PAD-UFES-20
+output: /srv/ccrr/experiments/pad512-seed20261008
+data_root: /srv/ccrr/PAD-UFES-20
 profile:
   size: 512
   research: true

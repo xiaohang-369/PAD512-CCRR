@@ -1,133 +1,76 @@
 # PAD512-CCRR
 
-医学图像能力约束表示的首版研究系统，依据 `PAD512-CCRR-v1.1`。工程同时包含模型、教师与 Purifier、私有码流、独立凭证、神经读写、训练、标定和评价；当前准备入口限定为 `ccrr train --stage A`，后续阶段仍有未闭合审查问题。
+PAD512-CCRR-v1.1 医学图像双能力授权研究工程，包含 A–J 阶段源码、512×512 预处理、INN 表示、Purifier、双流编码与认证、盲读写、标定和评价。
 
-**恢复契约：RGB 高保真近似恢复；认证成功后，选定量化等级的整数 latent 与 PAD-M1 字段精确恢复。** 代码和数值检查不能代替训练结果。此目录没有训练后的模型，也没有任何临床有效性、身份隐私或神经通信成功率的证明。
+**恢复契约：RGB 高保真近似恢复；认证后的量化整数 latent 与 PAD-M1 字段精确恢复。** 工程测试通过不代表教师能力、完整训练或科学指标达标。
 
-## 当前：A 阶段工程准入
+## 当前状态
 
-在真实教师接口验证基线 `24baab4` 上完成 D15/D18/D23 的 A 链路及 D09 的 A 恢复。完整工程回归 **169 passed，0 failed/skipped/xfail**（启用已核验原生 rANS 参考）。本地真实权重、五角色、512 预处理核验通过；真实任务能力与 H100 验证尚未执行。
+A 阶段基线 `fb68b6b` 已通过 169 项 Mac CPU 工程测试（包含独立原生 rANS 参考），三个真实教师权重的严格加载、RGB/灰度接口与输入梯度，以及冻结五角色 2,264 图的预处理核验。没有执行正式 A 训练，H100 CUDA、显存、吞吐与恢复一致性仍须服务器实测。
 
-- [A 阶段修复证据、范围与风险](docs/06_A阶段训练准入修复报告.md)
-- [H100 逐步检查、A 启动及恢复](docs/07_H100_A阶段操作指南.md)
-- `configs/stage_a_h100.yaml` 是独立模板，真实路径和服务器接口报告须由用户核验后填写。
+本次公开内容整理新增 3 项工具回归，完整工程检查为 **172 passed，0 failed/skipped/xfail**（含已有原生 rANS 参考）；没有重新训练或把历史真实权重验证冒充本次执行结果。
 
-```bash
-python -m ccrr.cli preflight --config /controlled/a.yaml --stage A
-# H100 检查和用户确认后执行正式训练：
-python -m ccrr.cli train --config /controlled/a.yaml --stage A
-# 同环境从最近持久 optimizer 边界恢复：
-python -m ccrr.cli train --config /controlled/a.yaml --stage A --resume
-```
+A 支持完整 optimizer 边界恢复。B–J 的完整恢复、部分选点、标定闭环及最终评价仍有未闭合问题；保留源码不表示这些阶段已通过研究验收。PanDerm 预训练数据重叠仍为 unknown，不构成无泄漏证明。未训练 Decoder 的真实盲提取应报告失败，不能用正确记录 oracle 替代。
 
-本轮网络参数结构不变，新写 `CCRR-CHECKPOINT-2`，兼容读取旧 v1 权重；旧 selected-only 文件不能作为完整 A 恢复状态。默认每 100 步及规定端点保存。B–J 恢复不在已验证范围。
+## 安装与工程检查
 
-## 历史：第一批代码正确性修复
-
-在重构提交 `52665d5` 上建立独立分支 `fix/pad512-v1.1-correctness-batch1`，按最终稿修复 D01、D03、D04、D11、D12。最新完整工程验证为 **133 passed，0 failed，0 skipped，0 xfailed**（使用本机已有且核验摘要的原生编码参照）。原三个 strict xfail 已转为必须通过的回归测试。
-
-详见 [第一批代码正确性修复报告](docs/PAD512-CCRR-v1.1_第一批代码正确性修复报告.md) 和 `verification/correctness_batch1/`。D11 有意删除 D_id/A_sem 多余的末端卷积，旧错误结构的 checkpoint 不兼容；未修改 checkpoint 容器格式。其余审查问题尚未解决，工程通过不等于教师能力、完整训练或科学指标通过。
-
-复现本轮工程检查：`python scripts/verify_refactor.py --out verification/correctness_batch1`。原生参照为可选项，不提供时该互操作测试应跳过；不会自动下载。历史函数/参数等价性检查针对结构重构，本轮有意修正数学与网络行为，不能继续声称全部等价。
-
-## 历史：架构审查与验证
-
-本轮按最终设计稿进行了受控结构重构，工作分支为 `refactor/pad512-v1.1-architecture`，原始源码保存在 `baseline/original`（`b2e8187`）。原目录没有 Git，已先建立归档和基线再重构。
-
-- [工程架构报告](docs/01_工程架构报告.md)
-- [设计—代码追踪表](docs/02_设计代码追踪表.md)
-- [完整验证报告与设计冲突](docs/03_完整验证报告.md)
-- [H100 后续训练准备清单](docs/04_H100后续训练准备清单.md)
-
-本次结果：**41 passed，3 strict xfailed**（启用已有 CompressAI 原生参照）。三个预期失败是既有设计冲突：occupancy 空洞、有效 batch 加权 CE、JS 风险量纲，不能计作验收通过。不配置可选原生参照时为 40 passed、1 skipped、3 xfailed。
-
-真实 PAD 五角色 2,264 图的 512 预处理像素摘要及全部 metadata 往返已重新核验。512 非平凡 INN 正逆、参数/输入梯度、消息读写梯度、底层 checkpoint 下一次优化器更新一致性、包/CLI 和阶段分派检查通过。**阶段分派检查不是 A–J 完整训练。**
-
-512 smoke 使用合成零 latent；正确记录 oracle 的数字协议成功，真实未训练盲 Decoder 的 C/M 均返回 `Extraction Failure`。没有真实教师权重加载、完整医学训练、H100 验证或科学指标达标证据。
-
-除三个可执行反例外，还发现选点规则、标定背景/闭环、阶段恢复和最终统计等缺项，已在验证报告 D01–D24 登记。本轮保留科研行为，未改最终设计稿。**目前不能认为下载权重、填路径后就可直接开始符合最终稿的正式训练。**
-
-本次证据在 `verification/refactor/`；原 `verification/implementation_report.json` 是保留的历史报告。新的复现入口是 `python scripts/verify_refactor.py`；它不下载模型、不启动正式训练。
-
-## 安装与训练入口（先解决审查报告中的阻塞）
-
-建议使用独立 Python 3.11 环境，数据、权重、凭证和实验输出放在源码目录之外。当前本机环境为 `/Users/zhuyanghang/Desktop/ccrr-runtime`。正式 GPU 主机先配置对应的 PyTorch/CUDA 构建，不能把本机 macOS 锁文件当作 H100 的锁文件。
+使用独立 Python 3.11 环境。先按设备准备项目指定的 PyTorch 2.6.0 / torchvision 0.21.0（H100 需要匹配驱动的 CUDA 构建），再由用户执行安装：
 
 ```bash
-python -m pip install -e '.[test]'
-python -m ccrr.cli inspect --config configs/pad512.yaml
-python -m ccrr.cli preflight --config configs/stage_a_h100.yaml --stage A
-# 模板必须先填真实路径和已验证接口报告，再按新指南启动 A。
+python -m pip install -e '.[verify]'
+python -m pip check
+python -m ccrr.cli --help
+python -m ccrr.cli inspect
+python scripts/verify_refactor.py --out /controlled/ccrr-checks
 ```
 
-`configs/pad512.yaml` 的权重项有意为空。填入经过核验的官方权重路径、SHA-256 和 PanDerm 固定源码；缺少资源时程序明确停止，不静默使用随机教师。官方 ImageNet 权重可用以下工具获取并生成**新的**配置文件：
+`verify` 包含 pytest 和 ruff；核心版本固定在 `pyproject.toml`。`requirements-local-macos.lock` 只记录 Mac 环境，不能当作 H100 锁文件。验证脚本不下载权重、不启动正式训练，不需要内部报告或历史分支。
 
-```bash
-python scripts/fetch_official_weights.py \
-  --config configs/pad512.yaml \
-  --directory /controlled/ccrr-weights \
-  --panderm-weights /controlled/ccrr-weights/panderm_bb_data6_checkpoint-499.pth \
-  --panderm-source /controlled/panderm/modeling_finetune.py \
-  --out-config /controlled/pad512-local.yaml
-```
+统一检查包含完整 pytest、包/CLI、协议、512 INN 正逆与梯度、Writer/Decoder 梯度、checkpoint、缺资源预期拒绝和未训练 smoke。独立原生 rANS 互操作参考可用 `--reference-ans PATH --reference-sha256 SHA256` 显式提供；没有它时该一项应跳过，固定字节向量测试仍必须通过。其他失败不能当作成功。
 
-PanDerm 必须使用设计指定的 Base 来源，不能替换为用本实验 val/test 微调的权重。源文件对应仓库 commit `fd7a80748ba7fc3e203fed88f909f4689d0d6f24`。预训练样本重叠仍须单独审计。
+只检查源码架构可运行 `python scripts/audit_architecture.py --out /controlled/architecture.json`；历史比较仅在显式提供存在的 `--baseline REF` 时进行。
 
-完整命令内部执行教师 → Purifier → 表示学习 → 通信 → 标定/联合训练 → 冻结终评。阶段是完整系统的训练依赖，不是取消教师或单独交付基础协议。未通过科学准入的阶段停止并写 `stopped.json` / `acceptance.json`，不会降低门槛继续制造“成功结果”。
+## 资源与 A 阶段入口
 
-已有阶段产物可通过 `--stage A|B|C|D|E|F|G|H|I|J` 进入相应阶段。A 现支持 `--resume`，保存 optimizer/scheduler/RNG/选点状态；其他阶段的 `--stage` 仍不是完整断点恢复。CUDA 位级恢复须按新指南在 H100 实测。
+数据、官方源码、权重、凭证和所有检查/训练输出放在源码目录之外。将 `configs/stage_a_h100.yaml` 复制为外部私有配置（下例 `/srv/ccrr/a.yaml`），填写真实路径；不要改变冻结划分、512 输入、预算、类别权重或阈值。`configs/pad512.yaml` 是全流程模板，空权重项会被严格拒绝。
 
-四组预登记开发配置由 `scripts/run_registered_matrix.py` 生成。默认只写配置，显式 `--run` 才执行。先完成主实验，再进行消融或跨分科扩展。
-
-## 发送与接收
-
-冻结模型与整数 CDF 后，`export` 生成绑定资源摘要的模型包。研究快照与正式部署 profile 分开；正式 profile 需要相应验收证据。
-
-```bash
-ccrr export --checkpoint /run/checkpoints/H.pt --cdf /run/snapshots/H-final-accepted/cdfs.npy \
-  --config /run/final-config.yaml --evidence /run/deployment-evidence.json --out /controlled/bundle
-
-ccrr send --manifest /controlled/bundle/manifest.json \
-  --image /controlled/source.png --metadata /controlled/metadata.json \
-  --clinical-checkpoint /run/checkpoints/clinical.pt \
-  --nonce-db /controlled/sender-state/nonce.sqlite --out /controlled/publication
-
-ccrr receive --manifest /controlled/bundle/manifest.json \
-  --image /controlled/publication/public.png \
-  --key-c /controlled/publication/C.key --key-m /controlled/publication/M.key \
-  --out /controlled/recovery
-```
-
-`send` 成功后只分享 `public.png`。C/M 凭证经独立受控渠道交付；它们不属于公开图像文件。接收端不读取原图、V、G0、连续 latent、发送预算、频带 gate 或临床教师。省略某条凭证不会妨碍另一条能力。
-
-Nonce 由 SQLite `WAL + synchronous=FULL + BEGIN IMMEDIATE` 预留。不要复制/回滚该存储后继续用旧密钥发送。完整数据库及所有本地证据同时回滚不能靠数据库自身识别；恢复备份或丢失存储后须新建对象和密钥。默认存储和日志均位于受控实验输出目录。
-
-## 工程布局
-
-| 路径（相对 src/ccrr） | 职责 |
+| 角色 | 资源 |
 |---|---|
-| `cli.py` | 参数解析、命令分派和错误出口 |
-| `data/` | PAD 预处理、五角色、患者配对、外部数据契约 |
-| `teachers/` | Clinical/MFM/ReID 与终评模型适配、严格权重加载 |
-| `representation/` | 三尺度 INN、Purifier、来源 mask 与局部监督 |
-| `codec/` | 统一量化、整数 CDF/rANS、PAD-M1、独立 AEAD/nonce/凭证 |
-| `communication/` | Carrier/两类 heads、Haar Writer、盲 Decoder、记录/路由 |
-| `runtime/` | send/receive/export 业务、真实 PNG、preflight、checkpoint 序列化、工程 smoke |
-| `training/` | Experiment 资源上下文、显式 A–J runner、阶段优化/损失、独立读出和攻击者训练 |
-| `calibration/` | 风险、probe/标签、阈值/预算/排序、G 工作流 |
-| `evaluation/` | 实际链路/开发选点/冻结攻击评分、指标、失败分母、患者统计 |
-| `tensor_ops.py`, `config.py`, `errors.py` | 共用张量与神经基础块、冻结配置、失败语义 |
+| Clinical Teacher | EfficientNet-B0 `IMAGENET1K_V1` |
+| MFM | PanDerm-Base `panderm_bb_data6_checkpoint-499.pth` |
+| ReID Teacher | ResNet-50 `IMAGENET1K_V2` |
 
-旧内部 Python import 路径已迁移，没有转发壳；本轮扩展 CLI 和 checkpoint 容器 v2，模型 state_dict 键保持。训练、测试、发送端共用同一套量化、记录、编码与接收机制。
+PanDerm 官方源码 commit 固定为 `fd7a80748ba7fc3e203fed88f909f4689d0d6f24`。模板含三权重完整摘要及源码摘要；PanDerm 权重摘要绑定已核验实物，不冒称发布方提供的完整校验值。资源由用户获取，仓库不附带权重。`fetch_official_weights.py` 是显式下载辅助，包含 J 阶段的 ConvNeXt/Swin，不是 A 的自动准备步骤。
 
-LPIPS、FID 和 CLIP-IQA 不参与选型或临床准入。CLIP-IQA 需要提供固定版本官方实现的适配文件和权重；当前未运行这些探索性指标。跨分科数据仍需真实数据许可、标签映射、患者标识与新 metadata profile 核验，不能仅凭接口存在就声称跨分科实验完成。
+必须提供完整冻结数据及原有核验证据（源 metadata、study_v1、protocol_audit_20261009 和图像）。`src/ccrr/data/frozen_evidence.json` 只含摘要与汇总数，是运行依赖；不得重生成摘要来掩盖数据变化。Git clone 本身不包含可运行正式训练的患者数据或划分文件。
 
-## 复核
+在 H100 上检查 `nvidia-smi`，设置 `CUBLAS_WORKSPACE_CONFIG=:4096:8`。逐模型运行 `scripts/check_teacher_interface.py --device cuda`，通过 `--model`、`--weights`、`--sha256`、`--out` 提供模板对应资源；PanDerm 另需 `--source`。四组 RGB/灰度和有效矩形检查均须通过。把各输出报告的真实路径及 SHA-256 填入外部配置的 `interface_reports`，不能用 Mac CPU 报告替代。
 
 ```bash
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
 python -m pytest -q
-python -m ccrr.cli smoke --size 512 --out /controlled/engineering-smoke
-python -m ccrr.cli audit-data --root /controlled/PAD-UFES-20 --out /controlled/data-check.json
+CCRR_TEST_DEVICE=cuda python -m pytest tests/test_stage_a_resume.py tests/test_stage_a_training_loops.py -q
+python -m ccrr.cli preflight --config /srv/ccrr/a.yaml --stage A
+python scripts/check_stage_a_host.py --config /srv/ccrr/a.yaml --model efficientnet_b0 --out /srv/ccrr/checks/clinical-batch16.json
+python scripts/check_stage_a_host.py --config /srv/ccrr/a.yaml --model resnet50 --out /srv/ccrr/checks/reid-pairs16.json
 ```
 
-工程测试中的合成数据、随机初始化教师和直接提供的正确记录都明确隔离。只有从实际保存/重读的 Gpub 盲提取、认证、解码得到的结果才进入正式授权恢复指标。容量拒绝仍在全输入分母；已发布但认证失败的图仍在公共临床/隐私评价分母。
+preflight 必须退出 0、`ready_for_stage=true` 且 `missing=[]`。资源检查只有合成前后向、没有 optimizer 更新；AdamW 状态为额外估算，不等于完整训练显存与吞吐已验。检查均通过并确认正式训练资源后，才执行：
+
+```bash
+python -m ccrr.cli train --config /srv/ccrr/a.yaml --stage A
+# 同代码、资源、环境、seed 和输出目录下中断恢复：
+python -m ccrr.cli train --config /srv/ccrr/a.yaml --stage A --resume
+```
+
+固定顺序为 Clinical 双域及两种域内对照 → MFM probe → ReID/P1、P2 独立评价；门禁失败停止。检查私有输出的 `acceptance.json`、`validation/`、`teacher_freeze_record.json` 和 checkpoint，不能仅凭生成权重判定能力达标。预登记 seed 各自使用独立输出目录，不选最好 seed。
+
+新 checkpoint 容器为 `CCRR-CHECKPOINT-2`；旧 v1/selected-only 权重不能作为完整 A 恢复。恢复使用最近持久 optimizer 边界，默认每 100 步及规定端点保存。早期错误 Purifier 结构权重与修正后的 D_id/A_sem 不兼容。
+
+## 工程接口
+
+`src/ccrr/` 按 data、teachers、representation、codec、communication、runtime、training、calibration、evaluation 分工。保留全部 A–J 实现；`scripts/run_registered_matrix.py` 默认只生成四组预登记配置，显式 `--run` 才启动训练。
+
+`ccrr export`、`ccrr send`、`ccrr receive` 提供冻结部署与收发入口，参数见各子命令 `--help`。发送前必须具备通过相应验收的冻结系统；只分享输出的 `public.png`，C/M 凭证独立交付。接收端不使用原图、连续 latent 或发送端预算。nonce 数据库不得回滚后复用旧密钥，丢失状态须创建新对象与密钥。
+
+请勿提交患者记录、逐图预测/配对日志、数据、权重、密钥、nonce 数据库、checkpoint 或实验结果。研究审查文档和历史验证日志仅在本地保留，不是安装、测试或部署依赖。

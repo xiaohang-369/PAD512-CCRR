@@ -1,4 +1,4 @@
-"""Record source-level architecture before/after a Git baseline; never train.
+"""Inspect current source architecture, optionally comparing a Git baseline.
 
 Static imports include lazy imports. Calls are syntax-level evidence, not a
 claim to resolve dynamic module types or prove numerical behavior.
@@ -136,26 +136,33 @@ def analyze(sources):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline", default="baseline/original")
-    parser.add_argument("--out", default="verification/refactor/architecture.json")
+    parser.add_argument("--baseline", help="Optional existing Git commit or ref")
+    parser.add_argument("--out", required=True, help="Output JSON path")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    paths = git(root, "ls-tree", "-r", "--name-only", args.baseline, "src").splitlines()
-    before = {
-        p: git(root, "show", args.baseline + ":" + p)
-        for p in paths
-        if p.endswith(".py")
-    }
     after = {
         str(p.relative_to(root)): p.read_text()
         for p in sorted((root / "src").rglob("*.py"))
     }
     report = {
-        "baseline_commit": git(root, "rev-parse", args.baseline).strip(),
+        "baseline_commit": None,
+        "comparison_performed": False,
         "scope": "Static source inventory; lazy imports included; dynamic calls not resolved",
-        "before": analyze(before),
         "after": analyze(after),
     }
+    if args.baseline:
+        baseline = git(
+            root, "rev-parse", "--verify", args.baseline + "^{commit}"
+        ).strip()
+        paths = git(root, "ls-tree", "-r", "--name-only", baseline, "src").splitlines()
+        before = {
+            p: git(root, "show", baseline + ":" + p) for p in paths if p.endswith(".py")
+        }
+        report.update(
+            baseline_commit=baseline,
+            comparison_performed=True,
+            before=analyze(before),
+        )
     output = root / args.out
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -171,6 +178,7 @@ def main():
                     )
                 }
                 for phase in ("before", "after")
+                if phase in report
             },
             indent=2,
         )

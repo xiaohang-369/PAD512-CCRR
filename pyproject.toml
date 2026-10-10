@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = ["torch==2.6.0", "torchvision==0.21.0", "numpy==2.2.6", "Pillow==11.3.0", "cryptography==44.0.3", "scipy==1.15.3", "scikit-learn==1.6.1", "scikit-image==0.25.2", "timm==0.9.16", "PyYAML==6.0.2"]
 [project.optional-dependencies]
 test = ["pytest==8.3.5"]
+verify = ["pytest==8.3.5", "ruff==0.11.13"]
 metrics = ["lpips==0.1.4", "pytorch-fid==0.3.0"]
 [project.scripts]
 ccrr = "ccrr.cli:main"
