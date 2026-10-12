@@ -150,7 +150,9 @@ def check_inputs(model, kind):
                     if torch.is_tensor(v)
                 )
                 norm = result["embedding"].norm(dim=1)
-                torch.testing.assert_close(norm, torch.ones(1), atol=1e-6, rtol=1e-6)
+                torch.testing.assert_close(
+                    norm, torch.ones_like(norm), atol=1e-6, rtol=1e-6
+                )
                 case["embedding_l2_norm"] = float(norm.detach()[0])
                 objective = result["embedding"][:, :16].sum()
             assert torch.isfinite(feature).all() and torch.isfinite(coverage).all()
