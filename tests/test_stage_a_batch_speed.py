@@ -22,7 +22,7 @@ finally:
     sys.path.remove(str(scripts))
 
 
-@pytest.mark.parametrize("n", [1, 4, 8])
+@pytest.mark.parametrize("n", [1, 4, 8, 16])
 def test_full_backbone_benchmark_is_repeatable(tmp_path, monkeypatch, n):
     class Fit(Data):
         def class_weights(self):
@@ -39,3 +39,39 @@ def test_full_backbone_benchmark_is_repeatable(tmp_path, monkeypatch, n):
     assert a["step"] == 753 and probe.exact_equal(a, b)
     assert not list(e.output.iterdir())
     assert len(a["optimizer"]["state"]) == 4
+
+
+@pytest.mark.parametrize(
+    "times,best,speedup", [((0.3, 0.2), 16, 1.5), ((0.3, 0.4), 8, 1.0)]
+)
+def test_comparison_uses_measured_reference_and_keeps_faster_eight(
+    times, best, speedup
+):
+    result = probe.comparison(
+        {str(n): {"seconds_per_step": t} for n, t in zip((8, 16), times)}
+    )
+    assert result["reference_microbatch"] == 8
+    assert result["fastest_microbatch"] == best
+    assert result["speedup_vs_reference"] == pytest.approx(speedup)
+
+
+@pytest.mark.parametrize("sizes", [[8], [8, 8], [8, 32]])
+def test_invalid_comparisons_fail_before_loading_data(sizes):
+    with pytest.raises(SystemExit):
+        probe.parse_args(
+            [
+                "--config",
+                "unused",
+                "--out",
+                "unused",
+                "--microbatches",
+                *map(str, sizes),
+            ]
+        )
+
+
+def test_eight_sixteen_cli_selection():
+    args = probe.parse_args(
+        ["--config", "unused", "--out", "unused", "--microbatches", "16", "8"]
+    )
+    assert args.microbatches == [8, 16]

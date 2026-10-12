@@ -77,7 +77,9 @@ python -m ccrr.cli train --config /srv/ccrr/a.yaml --stage A --resume
 
 Stage A 另支持 `microbatch: 4` 或 `8` 的真正批量执行（实现接受 1/2/4/8/16）。Clinical 按图分组，每组分别计算 RGB/Gray；MFM probe 同样分组；ReID 按对分组，逐对保留采样域和翻转，并把逐对损失求和后除以完整的 16 对。临床加权 CE 始终使用整个有效批量及全部视图的权重和归一化，BN 继续冻结、FP32 与严格确定性继续开启。MFM 初始化统计和验证路径保持原样。模板默认仍为 1。
 
-批量变化会改变浮点归约及 Dropout/stochastic-depth 的 RNG 消耗，不能声称与单图训练逐位一致。`microbatch` 已纳入恢复绑定；切换时使用新输出目录从官方基础权重开始，保留旧运行，不直接接续旧 checkpoint。相同配置内的完整保存/恢复仍需精确一致。可在另一张空闲 H100 使用 `scripts/check_stage_a_batch_speed.py --config /srv/ccrr/a.yaml --out /srv/ccrr/checks/new-batch-speed` 做一次 1/4/8 比较：使用真实已验收 fit 像素、CPU 热缓存、官方 EfficientNet-B0 和生产分类循环，每档重复两次并比较完整状态；为测量全骨干反向，仅在隔离测速中把调度器起点设为 750。测速不会读取或修改正式 checkpoint，所有更新丢弃，不能作为模型能力证据或全 Stage A 吞吐承诺。通过后再对新的外部配置执行正式 Preflight。
+批量变化会改变浮点归约及 Dropout/stochastic-depth 的 RNG 消耗，不能声称与单图训练逐位一致。`microbatch` 已纳入恢复绑定；切换时使用新输出目录从官方基础权重开始，保留旧运行，不直接接续旧 checkpoint。相同配置内的完整保存/恢复仍需精确一致。可在一张已确认空闲的 H100 使用 `scripts/check_stage_a_batch_speed.py --config /srv/ccrr/a.yaml --out /srv/ccrr/checks/new-batch-speed` 做一次 1/4/8 比较：使用真实已验收 fit 像素、CPU 热缓存、官方 EfficientNet-B0 和生产分类循环，每档重复两次并比较完整状态；为测量全骨干反向，仅在隔离测速中把调度器起点设为 750。测速不会读取或修改正式 checkpoint，所有更新丢弃，不能作为模型能力证据或全 Stage A 吞吐承诺。
+
+已有 1/4/8 结果时，追加 `--microbatches 8 16` 只比较这两档。报告中的 `reference_microbatch` 是本次最小档位，`fastest_microbatch` 按实测耗时选择，`speedup_vs_reference` 仅比较本次测量；16 更慢时保留 8，不把历史单图结果当作本轮基准。调用前检查目标 GPU 无其他计算进程，脚本不停止任何任务。短程 Clinical 测速尚未覆盖真实 MFM/ReID 批量接口、训练显存与恢复；旧 batch=1 接口报告及当前 Preflight 不能单独证明新的批量执行已完整准入，正式重启前仍须补齐这些证据。
 
 ## 工程接口
 

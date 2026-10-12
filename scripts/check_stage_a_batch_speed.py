@@ -1,4 +1,4 @@
-"""Compare actual clinical loops at microbatch 1/4/8; never read a live checkpoint.
+"""Compare selected clinical microbatches; never read a live checkpoint.
 
 Official initialization, admitted fit pixels and full-backbone backward are used.
 The schedule starts at 750 ONLY inside this disposable benchmark, to avoid a
@@ -27,6 +27,41 @@ from probe_stage_a_speed import exact_equal
 
 class Finished(Exception):
     pass
+
+
+def parse_args(argv=None):
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--config", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument(
+        "--microbatches",
+        type=int,
+        nargs="+",
+        choices=(1, 2, 4, 8, 16),
+        default=[1, 4, 8],
+        help="Compare these sizes in ascending order (default: 1 4 8)",
+    )
+    args = p.parse_args(argv)
+    if len(args.microbatches) < 2 or len(set(args.microbatches)) != len(
+        args.microbatches
+    ):
+        p.error("Supply at least two distinct microbatch sizes")
+    args.microbatches = sorted(args.microbatches)
+    return args
+
+
+def comparison(variants):
+    sizes = sorted(map(int, variants))
+    reference = sizes[0]
+    fastest = min(sizes, key=lambda n: variants[str(n)]["seconds_per_step"])
+    return {
+        "reference_microbatch": reference,
+        "fastest_microbatch": fastest,
+        "speedup_vs_reference": (
+            variants[str(reference)]["seconds_per_step"]
+            / variants[str(fastest)]["seconds_per_step"]
+        ),
+    }
 
 
 def replay(cfg, data, folder, steps, start=750, model_factory=ClinicalModel):
@@ -116,10 +151,7 @@ def replay(cfg, data, folder, steps, start=750, model_factory=ClinicalModel):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--config", required=True)
-    p.add_argument("--out", required=True)
-    args = p.parse_args()
+    args = parse_args()
     cfg = load_config(args.config)
     require(
         torch.cuda.is_available()
@@ -166,6 +198,7 @@ def main():
         "script_sha256": sha256(__file__),
         "synthetic_schedule_start": 750,
         "steps_per_repeat": 6,
+        "microbatches": args.microbatches,
         "threads": torch.get_num_threads(),
         "cache": pool.stats(),
         "variants": {},
@@ -175,7 +208,7 @@ def main():
             "Results do not establish MFM/ReID throughput or medical capability",
         ],
     }
-    for n in (1, 4, 8):
+    for n in args.microbatches:
         results, reference = [], None
         for repeat in range(2):
             print(
@@ -208,18 +241,14 @@ def main():
             flush=True,
         )
         del state, reference
-    fastest = min((4, 8), key=lambda n: report["variants"][str(n)]["seconds_per_step"])
-    speedup = (
-        report["variants"]["1"]["seconds_per_step"]
-        / report["variants"][str(fastest)]["seconds_per_step"]
-    )
-    report.update(
-        passed=True,
-        fastest_batched_microbatch=fastest,
-        speedup_vs_cached_microbatch1=speedup,
-    )
+    report.update(passed=True, **comparison(report["variants"]))
+    fastest, speedup = report["fastest_microbatch"], report["speedup_vs_reference"]
     write_json(out / "report.json", report)
-    print(f"BATCH_RESULT: microbatch={fastest}, speedup={speedup:.3f}x", flush=True)
+    print(
+        f"BATCH_RESULT: microbatch={fastest}, "
+        f"reference_microbatch={report['reference_microbatch']}, speedup={speedup:.3f}x",
+        flush=True,
+    )
     print("REPORT:", out / "report.json", flush=True)
 
 
