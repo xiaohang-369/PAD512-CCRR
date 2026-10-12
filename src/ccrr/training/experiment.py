@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from ccrr.config import Profile, canonical_json, sha256
 from ccrr.data.pad import PADData, PairSampler, collate
+from ccrr.data.cache import PixelCache, cache_budget
 from ccrr.teachers.adapters import (
     ClinicalModel,
     IdentityModel,
@@ -38,8 +39,11 @@ class Experiment:
         )
         self.profile = Profile.from_dict(config.get("profile", {}))
         self.data = {}
+        self.pixel_cache = PixelCache(cache_budget(config))
         for role in ("fit", "calibration", "val_tune", "val_select"):
-            self.data[role] = PADData(config["data_root"], role, self.profile.size)
+            self.data[role] = self.pixel_cache.wrap(
+                PADData(config["data_root"], role, self.profile.size)
+            )
         self.fit = self.data["fit"]
         self.sampler = PairSampler(self.fit)
         self.weights = self.fit.class_weights().to(self.device)

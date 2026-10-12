@@ -54,9 +54,13 @@ class TinyMFM(nn.Module):
         # This synthetic fixture uses pooling, unlike the real PanDerm backbone.
         # Keep its pooling on CPU for deterministic backward, retaining autograd
         # through the device copies and running the probe/optimizer on x.device.
-        f = torch.nn.functional.adaptive_avg_pool2d(
-            x.mean(1, keepdim=True).cpu(), (14, 14)
-        ).to(x.device).expand(-1, 768, -1, -1)
+        f = (
+            torch.nn.functional.adaptive_avg_pool2d(
+                x.mean(1, keepdim=True).cpu(), (14, 14)
+            )
+            .to(x.device)
+            .expand(-1, 768, -1, -1)
+        )
         return f, torch.ones_like(f[:, :1]), None
 
 
@@ -113,8 +117,24 @@ def compare(a, b):
         assert a == b
 
 
+def cache_fixture(data, root):
+    """Synthetic tensors with file-stat sentinels; real pixel tests are separate."""
+    from ccrr.data.cache import PixelCache
+
+    data.root = root
+    data.rows = [
+        dict(r, source_relpath=f"synthetic-source-{i}") for i, r in enumerate(data.rows)
+    ]
+    for r in data.rows:
+        (root / r["source_relpath"]).write_bytes(b"synthetic stat sentinel")
+    return PixelCache(1024**2).wrap(data)
+
+
 @pytest.mark.parametrize("kind", ["clinical", "mfm_probe"])
-def test_actual_a_loop_resume_matches_uninterrupted(tmp_path, monkeypatch, kind):
+@pytest.mark.parametrize("cached", [False, True])
+def test_actual_a_loop_resume_matches_uninterrupted(
+    tmp_path, monkeypatch, kind, cached
+):
     monkeypatch.setattr(teachers, "initialize_base", lambda *a: None)
     # Statistics have dedicated real numerical tests; avoid repeating 2000 draws
     # in this optimizer replay test. No fabricated passing capability is returned.
@@ -126,6 +146,10 @@ def test_actual_a_loop_resume_matches_uninterrupted(tmp_path, monkeypatch, kind)
 
     def run(path, resume=False):
         e = context(path, resume)
+        e.cfg["pixel_cache_bytes"] = 1024**2 if cached else 0
+        if cached and path.name != "continuous":
+            e.fit = cache_fixture(e.fit, path)
+            e.data["val_select"] = e.fit
         if kind == "clinical":
             return teachers.train_classifier(
                 e,
@@ -215,8 +239,9 @@ class IdentityData(Data):
         return b
 
 
+@pytest.mark.parametrize("cached", [False, True])
 def test_reid_actual_loop_restores_sampling_optimizer_and_selection(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, cached
 ):
     import json
     from ccrr.data.pad import PairSampler
@@ -235,6 +260,9 @@ def test_reid_actual_loop_restores_sampling_optimizer_and_selection(
         ds = IdentityData()
         ds.root = path
         ds.role = "val_select"
+        e.cfg["pixel_cache_bytes"] = 1024**2 if cached else 0
+        if cached and path.name != "continuous":
+            ds = cache_fixture(ds, path)
         e.fit = ds
         e.data = {"val_select": ds}
         e.sampler = PairSampler(ds)

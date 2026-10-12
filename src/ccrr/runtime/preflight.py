@@ -184,6 +184,11 @@ def inspect(config, stage="all"):
                 and config.get("resume_interval", 100) > 0,
                 "Invalid save interval",
             ),
+            (
+                type(config.get("pixel_cache_bytes", 0)) is int
+                and config.get("pixel_cache_bytes", 0) >= 0,
+                "pixel_cache_bytes must be a nonnegative integer",
+            ),
         ]
         missing.extend(label for passed, label in checks if not passed)
     data = None

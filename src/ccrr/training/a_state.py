@@ -21,6 +21,7 @@ def binding(config):
                 "budgets": config["budgets"],
                 "profile": config["profile"],
                 "batch_teacher": config.get("batch_teacher", 16),
+                "pixel_cache_bytes": config.get("pixel_cache_bytes", 0),
                 "device": config["device"],
                 "environment": environment(),
                 "cublas_workspace": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
