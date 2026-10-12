@@ -39,7 +39,7 @@ def test_stage_a_does_not_request_j_models_and_missing_a_stays_failure(monkeypat
     [
         ("seed", 1, "seed"),
         ("batch_teacher", 1, "batch"),
-        ("microbatch", 2, "microbatch"),
+        ("microbatch", 3, "microbatch"),
         ("bootstrap_repetitions", 20, "Bootstrap"),
         ("resume_interval", 0, "interval"),
     ],

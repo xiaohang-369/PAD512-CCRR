@@ -161,8 +161,9 @@ def inspect(config, stage="all"):
                 "A effective batches must be 16",
             ),
             (
-                config.get("microbatch", 1) == 1,
-                "A implementation currently executes microbatch=1",
+                type(config.get("microbatch", 1)) is int
+                and config.get("microbatch", 1) in (1, 2, 4, 8, 16),
+                "A microbatch must be 1, 2, 4, 8 or 16",
             ),
             (
                 config.get("bootstrap_repetitions", 2000) == 2000,

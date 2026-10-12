@@ -75,6 +75,10 @@ python -m ccrr.cli train --config /srv/ccrr/a.yaml --stage A --resume
 
 **已有运行不要直接合并此源码后恢复。** A checkpoint 仍严格绑定全部生产源码及缓存设置，没有增加忽略绑定的开关。新增 `scripts/check_stage_a_cache.py` 用于从独立候选源码目录验证：指定 `--legacy-repo` 为原正式源码目录、`--config` 为原配置、`--out` 为仓库和正式输出之外的新私有目录，在另一张空闲 H100 上运行。它校验原绑定和源码差异白名单，仅在私有副本中显式翻译绑定，然后用未改动的生产分类循环比较无缓存、仅缓存、缓存保存后冷启动重载三条路径；完整比较模型参数/缓冲区、AdamW、调度器、step、selection/audit、全部 RNG，以及各视图 loss、梯度和梯度范数。回放每一步在独立目录实际保存，最后一步在 `scheduler.advance()` 和保存完成后停止。计时仍不含保存与验证；短回放通过不等于整个 Stage A 提速或正式迁移已通过。正式迁移仍须另行保护最新进度并验证，原正式输出和进程不由该脚本修改。
 
+Stage A 另支持 `microbatch: 4` 或 `8` 的真正批量执行（实现接受 1/2/4/8/16）。Clinical 按图分组，每组分别计算 RGB/Gray；MFM probe 同样分组；ReID 按对分组，逐对保留采样域和翻转，并把逐对损失求和后除以完整的 16 对。临床加权 CE 始终使用整个有效批量及全部视图的权重和归一化，BN 继续冻结、FP32 与严格确定性继续开启。MFM 初始化统计和验证路径保持原样。模板默认仍为 1。
+
+批量变化会改变浮点归约及 Dropout/stochastic-depth 的 RNG 消耗，不能声称与单图训练逐位一致。`microbatch` 已纳入恢复绑定；切换时使用新输出目录从官方基础权重开始，保留旧运行，不直接接续旧 checkpoint。相同配置内的完整保存/恢复仍需精确一致。可在另一张空闲 H100 使用 `scripts/check_stage_a_batch_speed.py --config /srv/ccrr/a.yaml --out /srv/ccrr/checks/new-batch-speed` 做一次 1/4/8 比较：使用真实已验收 fit 像素、CPU 热缓存、官方 EfficientNet-B0 和生产分类循环，每档重复两次并比较完整状态；为测量全骨干反向，仅在隔离测速中把调度器起点设为 750。测速不会读取或修改正式 checkpoint，所有更新丢弃，不能作为模型能力证据或全 Stage A 吞吐承诺。通过后再对新的外部配置执行正式 Preflight。
+
 ## 工程接口
 
 `src/ccrr/` 按 data、teachers、representation、codec、communication、runtime、training、calibration、evaluation 分工。保留全部 A–J 实现；`scripts/run_registered_matrix.py` 默认只生成四组预登记配置，显式 `--run` 才启动训练。

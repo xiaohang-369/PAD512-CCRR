@@ -21,6 +21,12 @@ from ccrr.training.losses import (
 from ccrr.runtime.support import write_json
 from ccrr.training.optimization import optimizer, TeacherSchedule, update
 from ccrr.training.a_state import AProgress
+from ccrr.training.teacher_batches import (
+    microbatch,
+    clinical_backward,
+    mfm_backward,
+    reid_backward,
+)
 from ccrr.evaluation.teachers import (
     clinical_intervals,
     clinical_gate,
@@ -59,6 +65,7 @@ def initialize_base(experiment, wrapper, name):
 
 
 def train_classifier(experiment, model, name, budget, views, independent=False):
+    batch_size = microbatch(experiment.cfg)
     initialize_base(experiment, model, model.architecture)
     # Split base and final classification layer without relying on a DEFAULT enum.
     head = (
@@ -112,11 +119,14 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
                     CLASSES.index(experiment.fit.rows[int(i)]["diagnostic"])
                 ]
             )
-            for i in selected
+            for i in (selected if batch_size == 1 else [])
         ) * len(views)
         count = 0
         total = 0.0
-        for i in selected:
+        if batch_size > 1:
+            total = clinical_backward(experiment, model, selected, rng, views)
+            count = len(selected) * len(views)
+        for i in selected if batch_size == 1 else []:
             b = collate([experiment.fit[int(i)]], experiment.device)
             flip = rng.random() < 0.5
             for view in views:
@@ -147,7 +157,9 @@ def train_classifier(experiment, model, name, budget, views, independent=False):
         norm = update(opt)
         scheduler.advance()
         if (step + 1) % 100 == 0:
-            experiment.log(name, step + 1, {"loss": total, "gradient_norm": norm})
+            experiment.log(
+                name, step + 1, {"loss": float(total), "gradient_norm": norm}
+            )
         if (step + 1) % 500 == 0 or step + 1 == budget:
             reports = [
                 evaluate_classifier(
@@ -241,6 +253,7 @@ def stage_a(experiment):
 
 
 def train_mfm_probe(experiment):
+    batch_size = microbatch(experiment.cfg)
     interface = mfm_interface(experiment.mfm, experiment.fit, experiment.device)
     head = nn.Linear(768, 6).to(experiment.device)
     opt = optimizer([head], [1e-3])
@@ -282,11 +295,13 @@ def train_mfm_probe(experiment):
                         CLASSES.index(experiment.fit.rows[int(i)]["diagnostic"])
                     ]
                 )
-                for i in ids
+                for i in (ids if batch_size == 1 else [])
             )
             * 2
         )
-        for i in ids:
+        if batch_size > 1:
+            mfm_backward(experiment, head, ids)
+        for i in ids if batch_size == 1 else []:
             b = collate([experiment.fit[int(i)]], experiment.device)
             for x in (b["x"], gray(b["x"])):
                 with torch.no_grad():
@@ -334,6 +349,7 @@ def train_mfm_probe(experiment):
 
 
 def train_reid_teacher(experiment):
+    batch_size = microbatch(experiment.cfg)
     model = experiment.reid
     opt = optimizer([model.model, model.classifier], [1e-4, 1e-3])
     total = experiment.cfg["budgets"]["reid"]
@@ -348,7 +364,9 @@ def train_reid_teacher(experiment):
         freeze_bn(model)
         opt.zero_grad(set_to_none=True)
         sampled = []
-        for a, b, s, scenario in pairs:
+        if batch_size > 1:
+            sampled = reid_backward(experiment, model, pairs, rng)
+        for a, b, s, scenario in pairs if batch_size == 1 else []:
             ba = collate([experiment.fit[a]], experiment.device)
             bb = collate([experiment.fit[b]], experiment.device)
             domain = int(rng.integers(3))

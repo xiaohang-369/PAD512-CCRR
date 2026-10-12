@@ -132,8 +132,9 @@ def cache_fixture(data, root):
 
 @pytest.mark.parametrize("kind", ["clinical", "mfm_probe"])
 @pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("micro", [1, 4, 8])
 def test_actual_a_loop_resume_matches_uninterrupted(
-    tmp_path, monkeypatch, kind, cached
+    tmp_path, monkeypatch, kind, cached, micro
 ):
     monkeypatch.setattr(teachers, "initialize_base", lambda *a: None)
     # Statistics have dedicated real numerical tests; avoid repeating 2000 draws
@@ -146,6 +147,7 @@ def test_actual_a_loop_resume_matches_uninterrupted(
 
     def run(path, resume=False):
         e = context(path, resume)
+        e.cfg["microbatch"] = micro
         e.cfg["pixel_cache_bytes"] = 1024**2 if cached else 0
         if cached and path.name != "continuous":
             e.fit = cache_fixture(e.fit, path)
@@ -240,8 +242,9 @@ class IdentityData(Data):
 
 
 @pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("micro", [1, 4, 8])
 def test_reid_actual_loop_restores_sampling_optimizer_and_selection(
-    tmp_path, monkeypatch, cached
+    tmp_path, monkeypatch, cached, micro
 ):
     import json
     from ccrr.data.pad import PairSampler
@@ -257,6 +260,7 @@ def test_reid_actual_loop_restores_sampling_optimizer_and_selection(
 
     def run(path, resume=False):
         e = context(path, resume)
+        e.cfg["microbatch"] = micro
         ds = IdentityData()
         ds.root = path
         ds.role = "val_select"
