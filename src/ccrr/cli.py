@@ -25,7 +25,7 @@ def main(argv=None):
     x.add_argument(
         "--resume",
         action="store_true",
-        help="Resume the last durable A optimizer boundary",
+        help="Resume the last durable A/B optimizer or B endpoint-audit boundary",
     )
     x = sub.add_parser("preflight")
     x.add_argument("--config", required=True)

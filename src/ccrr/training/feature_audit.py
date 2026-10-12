@@ -9,8 +9,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from sklearn.metrics import roc_auc_score
-from ccrr.data.pad import collate, rng_for
-from ccrr.tensor_ops import gray, pooled
+from ccrr.data.pad import rng_for
+from ccrr.codec.metadata import CLASSES
+from ccrr.tensor_ops import pooled, masked_mean
 from ccrr.representation.purifier import SemanticAttacker
 from ccrr.training.optimization import optimizer, schedule, update
 from ccrr.runtime.support import write_json
@@ -30,51 +31,106 @@ class FeatureAudit:
         self.occupancy = []
 
     def cache(self):
+        from ccrr.training.b_batches import TeacherBank
+        from ccrr.training.teacher_batches import chunks
+        from ccrr.errors import require
+
         e = self.e
+        self.store = {}
+        self.diagnostics = []
+        budget = e.cfg.get("b_audit_cache_bytes", 8 * 1024**3)
+        total_bytes = 0
         for role in ("fit", "val_select"):
             ds = e.data[role]
-            rows = []
-            folder = self.root / role
-            folder.mkdir(exist_ok=True)
+            # raw has two unique domains; source-mask gray shares raw gray.
+            required = len(ds) * (5 * 768 * 196 + 196) * 4
+            require(
+                total_bytes + required <= budget,
+                "B audit cache exceeds b_audit_cache_bytes",
+            )
+            bank = getattr(e, "b_teacher_bank", None) if role == "fit" else None
+            if bank is None:
+                bank = TeacherBank(e, role, identity=False)
+            rows, storage = [], {}
             with torch.no_grad():
-                for i in range(len(ds)):
-                    b = collate([ds[i]], e.device)
-                    fx, v, _ = e.mfm(b["x"], b["rect"])
-                    fy, _, _ = e.mfm(gray(b["x"]), b["rect"])
-                    px = e.purifier(fx, v)
-                    py = e.purifier(fy, v)
-                    cross = e.purifier(fy, v, source_mask=px["hard_mask"])
-                    raw = torch.stack(
-                        (
-                            px["standardized"][0],
-                            py["standardized"][0],
-                            py["standardized"][0],
+                for ids in chunks(list(range(len(ds))), e.cfg.get("microbatch", 1)):
+                    t = bank.get(ids)
+                    v = t["v"]
+                    px = e.purifier(t["f0"], v)
+                    py = e.purifier(t["f1"], v)
+                    cross = e.purifier(t["f1"], v, source_mask=px["hard_mask"])
+                    content = {
+                        "raw": torch.stack(
+                            (px["standardized"], py["standardized"]), 1
+                        ).cpu(),
+                        "sem": torch.stack(
+                            (px["semantic"], py["semantic"], cross["semantic"]), 1
+                        ).cpu(),
+                        "v": v.cpu(),
+                    }
+                    for key, value in content.items():
+                        require(
+                            torch.isfinite(value).all(), "Nonfinite B audit features"
                         )
-                    )
-                    sem = torch.stack(
-                        (px["semantic"][0], py["semantic"][0], cross["semantic"][0])
-                    )
-                    content = {"raw": raw.cpu(), "sem": sem.cpu(), "v": v[0].cpu()}
-                    torch.save(content, folder / f"{i}.pt")
-                    rows.append(
-                        {
-                            "raw": pooled(raw, v.expand(3, -1, -1, -1)).cpu(),
-                            "sem": pooled(sem, v.expand(3, -1, -1, -1)).cpu(),
-                            "label": int(b["label"][0]),
-                            "patient": b["patient"][0],
-                        }
-                    )
-                    if role == "val_select":
-                        self.occupancy.append(
-                            [float(pooled(p["hard_mask"], v).mean()) for p in (px, py)]
+                        if key not in storage:
+                            storage[key] = torch.empty(
+                                (len(ds), *value.shape[1:]), dtype=value.dtype
+                            )
+                        storage[key][ids[0] : ids[-1] + 1].copy_(value)
+                    for j, i in enumerate(ids):
+                        raw = content["raw"][j][[0, 1, 1]]
+                        sem = content["sem"][j]
+                        vc = content["v"][j : j + 1].expand(3, -1, -1, -1)
+                        rows.append(
+                            {
+                                "raw": pooled(raw, vc),
+                                "sem": pooled(sem, vc),
+                                "label": CLASSES.index(ds.rows[i]["diagnostic"]),
+                                "patient": ds.rows[i]["patient_id"],
+                            }
                         )
+                        if role == "val_select":
+                            self.occupancy.append(
+                                [
+                                    float(
+                                        pooled(
+                                            p["hard_mask"][j : j + 1], v[j : j + 1]
+                                        ).mean()
+                                    )
+                                    for p in (px, py)
+                                ]
+                            )
+                            self.diagnostics.append(
+                                [
+                                    float(
+                                        masked_mean(
+                                            (
+                                                p["all"][j : j + 1]
+                                                - p["standardized"][j : j + 1]
+                                            ).square(),
+                                            v[j : j + 1],
+                                        )
+                                    )
+                                    for p in (px, py)
+                                ]
+                            )
             self.means[role] = rows
+            self.store[role] = storage
+            total_bytes += sum(v.numel() * v.element_size() for v in storage.values())
+        self.cache_bytes = total_bytes
+        print(f"B_AUDIT_CACHE_READY: bytes={total_bytes}", flush=True)
+
+    def feature_batch(self, role, indices, representation, domains):
+        source = self.store[role]
+        if representation == "raw":
+            domains = [min(d, 1) for d in domains]
+        return (
+            source[representation][indices, domains].to(self.e.device),
+            source["v"][indices].to(self.e.device),
+        )
 
     def features(self, role, i, representation, domain):
-        p = torch.load(
-            self.root / role / f"{i}.pt", weights_only=True, map_location=self.e.device
-        )
-        return p[representation][domain : domain + 1], p["v"][None]
+        return self.feature_batch(role, [i], representation, [domain])
 
     def classifiers(self):
         e = self.e
@@ -92,6 +148,7 @@ class FeatureAudit:
                 opt = optimizer([head], [1e-3])
                 best = -1
                 best_predictions = None
+                print(f"B_AUDIT_CLASSIFIER: {rep}/{family}", flush=True)
                 for step in range(2000):
                     rng = rng_for(e.seed, "feature-clinical", rep + family, step)
                     ids = rng.integers(len(e.fit), size=16)
@@ -174,13 +231,14 @@ class FeatureAudit:
         model.eval()
         for da in range(3):
             for db in range(3):
+                print(f"B_AUDIT_SCORE: {scenario}/{rep} {da}->{db}", flush=True)
                 scores = []
                 truth = []
                 pairs = []
                 weights = []
+                endpoints = []
                 for q in protocol["queries"]:
                     ai = ds.index[q["query"]]
-                    a, va = self.features("val_select", ai, rep, da)
                     for label, field in (
                         (1, "positive_gallery"),
                         (0, "negative_gallery"),
@@ -188,13 +246,22 @@ class FeatureAudit:
                         names = q[field]
                         for name in names:
                             bi = ds.index[name]
-                            b, vb = self.features("val_select", bi, rep, db)
-                            scores.append(float(model(a, va, b, vb)))
+                            endpoints.append((ai, bi))
                             truth.append(label)
                             pairs.append((q["patient_id"], ds.rows[bi]["patient_id"]))
                             weights.append(
                                 1 / query_count[q["patient_id"]] / len(names)
                             )
+                n = e.cfg.get("microbatch", 1)
+                for start in range(0, len(endpoints), n):
+                    group = endpoints[start : start + n]
+                    a, va = self.feature_batch(
+                        "val_select", [p[0] for p in group], rep, [da] * len(group)
+                    )
+                    b, vb = self.feature_batch(
+                        "val_select", [p[1] for p in group], rep, [db] * len(group)
+                    )
+                    scores.extend(model(a, va, b, vb).cpu().tolist())
                 rows.append(
                     {
                         "domain": [da, db],
@@ -205,6 +272,35 @@ class FeatureAudit:
                     }
                 )
         return rows
+
+    def attacker_update(self, model, opt, rep, scenario, family, step):
+        e = self.e
+        model.train()
+        opt.zero_grad()
+        rng = rng_for(e.seed, "feature-attack", scenario + rep + family, step)
+        pairs = e.sampler.sample(rng, scenario)
+        domains = [(int(rng.integers(3)), int(rng.integers(3))) for _ in pairs]
+        n = e.cfg.get("microbatch", 1)
+        for begin in range(0, len(pairs), n):
+            group = pairs[begin : begin + n]
+            view = domains[begin : begin + n]
+            fa, va = self.feature_batch(
+                "fit", [p[0] for p in group], rep, [d[0] for d in view]
+            )
+            fb, vb = self.feature_batch(
+                "fit", [p[1] for p in group], rep, [d[1] for d in view]
+            )
+            logit = model(fa, va, fb, vb)
+            (
+                F.binary_cross_entropy_with_logits(
+                    logit,
+                    logit.new_tensor([p[2] for p in group]),
+                    reduction="sum",
+                )
+                / 16
+            ).backward()
+        schedule(opt, step, 5000)
+        update(opt)
 
     def attackers(self):
         e = self.e
@@ -218,25 +314,14 @@ class FeatureAudit:
                     opt = optimizer([model], [1e-4])
                     best = -1
                     best_scores = None
+                    print(f"B_AUDIT_ATTACKER: {scenario}/{rep}/{family}", flush=True)
                     for step in range(5000):
-                        model.train()
-                        opt.zero_grad()
-                        rng = rng_for(
-                            e.seed, "feature-attack", scenario + rep + family, step
-                        )
-                        for a, b, s, _ in e.sampler.sample(rng, scenario):
-                            fa, va = self.features("fit", a, rep, int(rng.integers(3)))
-                            fb, vb = self.features("fit", b, rep, int(rng.integers(3)))
-                            logit = model(fa, va, fb, vb)
-                            (
-                                F.binary_cross_entropy_with_logits(
-                                    logit, logit.new_tensor([s])
-                                )
-                                / 16
-                            ).backward()
-                        schedule(opt, step, 5000)
-                        update(opt)
+                        self.attacker_update(model, opt, rep, scenario, family, step)
                         if (step + 1) % 500 == 0:
+                            print(
+                                f"B_AUDIT_ATTACKER_STEP: {scenario}/{rep}/{family} {step + 1}/5000",
+                                flush=True,
+                            )
                             scores = self.attack_scores(model, rep, scenario)
                             auc = [
                                 roc_auc_score(
@@ -252,6 +337,7 @@ class FeatureAudit:
         checks = []
         for scenario in ("p1", "p2"):
             for d in range(9):
+                print(f"B_AUDIT_BOOTSTRAP: {scenario} direction={d}", flush=True)
                 reference = all_scores[scenario, "raw", "spatial"][d]
                 pairs = reference["pairs"]
                 y = np.asarray(reference["labels"])
@@ -322,6 +408,8 @@ class FeatureAudit:
             "clinical": c,
             "identity": a,
             "occupancy_in_range": fraction,
+            "l_all": float(np.mean(self.diagnostics)),
+            "cache_tensor_bytes": self.cache_bytes,
             "passed": bool(c["passed"] and a["passed"] and (fraction >= 0.95).all()),
         }
         write_json(self.root / "acceptance.json", result)

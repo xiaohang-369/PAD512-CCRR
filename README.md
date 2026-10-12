@@ -85,7 +85,51 @@ Stage A 另支持 `microbatch: 4` 或 `8` 的真正批量执行（实现接受 1
 
 ## 工程接口
 
-`src/ccrr/` 按 data、teachers、representation、codec、communication、runtime、training、calibration、evaluation 分工。保留全部 A–J 实现；`scripts/run_registered_matrix.py` 默认只生成四组预登记配置，显式 `--run` 才启动训练。
+`src/ccrr/` 按 data、teachers、representation、codec、communication、runtime、training、calibration、evaluation 分工。保留 A–J 入口（不等于各阶段协议完整）；`scripts/run_registered_matrix.py` 默认只生成四组预登记配置，显式 `--run` 才启动训练。
+
+### Stage B 执行准备（尚未开放正式科研准入）
+
+B 使用外部配置 `stage_a_source: {output: <完成的A目录>, freeze_sha256: <冻结记录SHA256>}`，
+训练输出必须与 A 无父子目录重叠。启动前及教师加载时核对冻结记录、三项验收、五份选中
+checkpoint 的 SHA256/预算、seed、类别顺序、冻结数据绑定和基础模型版本；加载后再核对
+fit 患者映射。不会向 A 写入新日志、配置或 checkpoint。新 B CLI 使用进程文件锁拒绝重复
+启动；已有 B 产物必须显式 `--resume`，恢复绑定源码、环境、执行配置和教师记录。
+
+B 图像/配对路径支持 microbatch 1/2/4/8/16，有效批量分别固定 16 图/16 对，保持图像均值、
+全批次类别权重分母、两域与三语义视图、2:1 攻击者更新及对抗升权。按 §26.1 修正原代码
+遗漏的攻击者学习率计划：攻击者预算为 20000 次更新，独立 warmup/cosine；因此不是旧 B
+轨迹的等价恢复，旧 B checkpoint 不迁移。选点补回 §26.1 的第三排序项最小 `L_all`，之后才同分取早。
+
+冻结教师按数据固定顺序批量抽取 FP32 RGB/Gray patch features 和 ReID 向量。
+`b_cache_device` 为 `cpu`（默认）或 `cuda`；`b_cache_bytes` 默认 4 GiB 为单个教师 bank 的
+张量上限。进程内缓存不保存训练中的 Purifier 输出、mask 或计算图，不消耗样本 RNG，
+恢复时按同样分组重建。拟部署配置与重建一致性须在 H100 验证。
+验收阶段固定当前端点，使用 CPU 特征缓存 `b_audit_cache_bytes`（默认 8 GiB），批量更新
+独立攻击器及评分，保持全部患者配对、九方向顺序、权重和预算。缓存不计 Python/当前批次
+临时内存；fit bank 和临时 val bank 的内存另计。没有用磁盘逐对反复加载代替缓存。
+
+`b.last.pt` 原子保存两模型、两 AdamW 状态、两调度器计数、全部 RNG、审核阶段、已完成
+端点和选点结果。默认每 100 次生成端更新保存，每 1000 步另保留强制端点。`--stage B --resume`
+支持回到最近持久边界；中途未保存的更新重放。独立验收以**整个端点**为恢复边界，
+中断的当前端点重新验收，已提交端点不重复；不是独立读出器任意 step 的恢复。
+
+在一张确认空闲的 H100，用新私有目录运行：
+
+```bash
+python scripts/check_stage_b_host.py --config <完成A的配置> --out <新私有诊断目录> --microbatches 8 16
+```
+
+检查器只读 A 成果，在独立副本执行生产 B 更新。回放从人工调度 step 1999 起，覆盖完整
+生成端对抗，比较连续六步与一步保存/重建缓存/重载再五步的完整 checkpoint；更新全部丢弃。
+输出训练步耗时、冻结教师缓存构建耗时、保存耗时、峰值已分配显存、独立空间攻击器单步
+耗时以及一次 P1 九方向评分耗时。CPU 单元测试不替代此报告。没有执行完整临床读出、
+P2 全评或患者 bootstrap，不能将短程吞吐换算成整个 B 完成时间。当前十个端点各自
+包含四个 2000 步临床读出和八个 5000 步身份攻击器，验收开销须单独计费。
+
+**现有科研缺项已显式阻止 B 正式 Preflight 放行**：§7.7 另训的无分支对照与完整分支诊断、
+§26.3 复制攻击者再适配诊断、局部特征/mask 功能验证尚未完整实现。不能把原数值门槛通过
+标记成全协议 B 验收通过；不存在忽略这些缺项的启动开关。本轮执行加速及恢复测试不补造
+这些科学证据，也不更改冻结研究方案。`candidate-config.yaml` 仅是后续候选配置，不是训练指令。
 
 `ccrr export`、`ccrr send`、`ccrr receive` 提供冻结部署与收发入口，参数见各子命令 `--help`。发送前必须具备通过相应验收的冻结系统；只分享输出的 `public.png`，C/M 凭证独立交付。接收端不使用原图、连续 latent 或发送端预算。nonce 数据库不得回滚后复用旧密钥，丢失状态须创建新对象与密钥。
 

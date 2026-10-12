@@ -288,7 +288,35 @@ def inspect(config, stage="all"):
         data = verify_dataset(config.get("data_root", ""), pixels=True)
     except (CCRRError, OSError, KeyError, ValueError) as exc:
         missing.append("Frozen data evidence: " + str(exc))
-    if stage not in ("A", "all"):
+    b_teachers_verified = None
+    if stage == "all":
+        from ccrr.training.b_resources import SCIENTIFIC_GAPS
+
+        missing.extend(
+            "B scientific admission not implemented: " + gap for gap in SCIENTIFIC_GAPS
+        )
+    if stage == "B":
+        from ccrr.training.b_resources import (
+            verify_teachers,
+            execution_options,
+            SCIENTIFIC_GAPS,
+        )
+
+        try:
+            execution_options(config)
+            verify_teachers(config)
+            b_teachers_verified = True
+        except (CCRRError, OSError, KeyError, TypeError, ValueError) as exc:
+            b_teachers_verified = False
+            missing.append("B frozen teacher dependencies: " + str(exc))
+        # Never allow the old subset of numeric gates to certify section 7.7.
+        missing.extend(
+            "B scientific admission not implemented: " + gap for gap in SCIENTIFIC_GAPS
+        )
+        limitations.append(
+            "B H100 batch throughput and recovery require a new B-specific engineering report"
+        )
+    elif stage not in ("A", "all"):
         output = Path(config.get("output", "."))
         acceptance = output / "acceptance.json"
         accepted = json.loads(acceptance.read_text()) if acceptance.is_file() else {}
@@ -326,6 +354,7 @@ def inspect(config, stage="all"):
         "environment": env,
         "weights": weights,
         "batch_execution_verified": batch_verified,
+        "b_frozen_teachers_verified": b_teachers_verified,
         "data": data,
         "ready_for_stage": not missing,
         "ready_for_teacher_training": stage in ("A", "all") and not missing,

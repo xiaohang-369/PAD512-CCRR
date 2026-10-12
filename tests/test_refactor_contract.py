@@ -191,9 +191,11 @@ def test_missing_dependency_stops_before_training_and_closes_allocator(tmp_path)
     (tmp_path / "acceptance.json").write_text("{}")
     closed = []
     context = SimpleNamespace(
-        output=tmp_path, allocator=SimpleNamespace(close=lambda: closed.append(True))
+        output=tmp_path,
+        cfg={},
+        allocator=SimpleNamespace(close=lambda: closed.append(True)),
     )
-    with pytest.raises(CCRRError, match="Missing accepted dependency"):
+    with pytest.raises(CCRRError, match="B requires stage_a_source"):
         runner.run(context, "B")
     report = json.loads((tmp_path / "stopped.json").read_text())
     assert (

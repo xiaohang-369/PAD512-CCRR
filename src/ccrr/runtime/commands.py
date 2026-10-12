@@ -48,6 +48,10 @@ def preflight(args):
     from ccrr.runtime.preflight import inspect
 
     cfg = load_config(args.config)
+    if getattr(args, "stage", "all") == "B":
+        from ccrr.training.b_resources import verify_teachers
+
+        verify_teachers(cfg)  # Refuse A/B overlap before writing even a report.
     report = inspect(cfg, getattr(args, "stage", "all"))
     write_json(Path(cfg["output"]) / "preflight.json", report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -58,8 +62,21 @@ def train(args):
     from ccrr.training.experiment import Experiment
 
     cfg = load_config(args.config)
-    require(not args.resume or args.stage == "A", "--resume is implemented only for A")
-    cfg["resume_a"] = args.resume
+    require(
+        not args.resume or args.stage in ("A", "B"),
+        "--resume is implemented only for A/B",
+    )
+    cfg["resume_a"] = args.resume and args.stage == "A"
+    cfg["resume_b"] = args.resume and args.stage == "B"
+    if args.stage == "B":
+        from ccrr.training.b_state import output_lock
+
+        with output_lock(cfg):
+            return _train_checked(args, cfg, Experiment)
+    return _train_checked(args, cfg, Experiment)
+
+
+def _train_checked(args, cfg, Experiment):
     from ccrr.runtime.preflight import inspect as check
 
     report = check(cfg, args.stage)

@@ -31,7 +31,7 @@ class Experiment:
             self.output.resolve() != Path(__file__).parents[3].resolve(),
             "Outputs belong outside source",
         )
-        if not config.get("resume_a"):
+        if not (config.get("resume_a") or config.get("resume_b")):
             write_json(self.output / "environment.json", environment())
         require(
             self.device.type != "cuda" or torch.cuda.is_available(),
@@ -62,9 +62,9 @@ class Experiment:
         self.policies = {}
         self.risks = {}
         self.snapshot_index = 0
-        if not config.get("resume_a"):
+        if not (config.get("resume_a") or config.get("resume_b")):
             write_json(self.output / "config.json", config)
-        if not config.get("resume_a"):
+        if not (config.get("resume_a") or config.get("resume_b")):
             write_json(self.output / "environment.json", environment())
         write_json(
             self.output / "data_hashes.json",

@@ -67,6 +67,30 @@ def run(experiment, stage="all"):
 
 
 def restore_dependencies(experiment, stage):
+    if stage == "B":
+        from ccrr.training.b_resources import verify_teachers
+
+        root, record = verify_teachers(experiment.cfg)
+        require(
+            record["fit_patient_mapping"] == experiment.fit.pid,
+            "Frozen ReID patient mapping mismatch",
+        )
+        experiment.acceptance = dict(record["acceptance"])
+        for name, model in (
+            ("clinical", experiment.clinical),
+            ("reid", experiment.reid),
+        ):
+            load_checkpoint(root / "checkpoints" / (name + ".pt"), {"model": model})
+            freeze(model)
+        item = experiment.cfg["weights"]["panderm"]
+        experiment.mfm = PanDerm(
+            item["source"], item["source_sha256"], item["path"], item["sha256"]
+        ).to(experiment.device)
+        freeze(experiment.mfm)
+        load_checkpoint(
+            root / "checkpoints/mfm_probe.pt", {"purifier": experiment.purifier}
+        )
+        return
     experiment.acceptance = json.loads(
         (experiment.output / "acceptance.json").read_text()
     )

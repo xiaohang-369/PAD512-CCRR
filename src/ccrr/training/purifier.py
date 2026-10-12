@@ -5,16 +5,13 @@ import torch
 from torch.nn import functional as F
 from ccrr.config import sha256
 from ccrr.data.pad import collate, rng_for
-from ccrr.codec.metadata import CLASSES
 from ccrr.teachers.adapters import (
     freeze,
 )
-from ccrr.tensor_ops import gray, pooled
-from ccrr.representation.supervision import TeacherSupervision, align
-from ccrr.tensor_ops import masked_mean
-from ccrr.training.losses import weighted_cross_entropy
+from ccrr.tensor_ops import gray
+from ccrr.representation.supervision import align
 from ccrr.runtime.support import write_json
-from ccrr.training.optimization import optimizer, schedule, update
+from ccrr.training.optimization import optimizer, update
 from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.errors import require
 from ccrr.calibration.probes import (
@@ -56,140 +53,101 @@ def semantic_adversary_step(experiment, step, substep, opt):
 
 
 def stage_b(experiment):
+    from ccrr.training.b_batches import TeacherBank, train_step
+    from ccrr.training.b_state import BProgress
+    from ccrr.training.optimization import TeacherSchedule
+    import time
+
+    e = experiment
     require(
-        experiment.mfm is not None and bool(experiment.purifier.stats_ready),
-        "Teacher stages required",
+        e.mfm is not None and bool(e.purifier.stats_ready), "Teacher stages required"
     )
-    experiment.purifier.train()
-    experiment.sem_attacker.train()
-    opt = optimizer([experiment.purifier], [1e-4])
-    advopt = optimizer([experiment.sem_attacker], [1e-4])
-    total = experiment.cfg["budgets"]["purifier"]
-    for step in range(total):
-        for p in experiment.sem_attacker.parameters():
-            p.requires_grad_(True)
-        for sub in range(2):
-            semantic_adversary_step(experiment, step, sub, advopt)
-        freeze(experiment.sem_attacker)
-        opt.zero_grad(set_to_none=True)
-        rng = rng_for(experiment.seed, "B", "images", step)
-        ids = rng.integers(len(experiment.fit), size=16)
-        denom = (
-            sum(
-                float(
-                    experiment.weights[
-                        CLASSES.index(experiment.fit.rows[int(i)]["diagnostic"])
-                    ]
-                )
-                for i in ids
+    e.purifier.train().requires_grad_(True)
+    e.sem_attacker.train().requires_grad_(True)
+    opt = optimizer([e.purifier], [1e-4])
+    advopt = optimizer([e.sem_attacker], [1e-4])
+    total = e.cfg["budgets"]["purifier"]
+    scheduler, advscheduler = (
+        TeacherSchedule(opt, total),
+        TeacherSchedule(advopt, 2 * total),
+    )
+    # Build before restoring RNG; fixed eval teachers, canonical cohorts, no sampling.
+    bank = TeacherBank(e)
+    e.b_teacher_bank = bank
+    progress = BProgress(e, opt, advopt, scheduler, advscheduler)
+    progress.check_endpoints()
+    if not progress.path.exists():
+        progress.save()
+    print(
+        f"B_TRAIN_START: step={scheduler.next_step}, microbatch={e.cfg.get('microbatch', 1)}, cache_bytes={bank.bytes}",
+        flush=True,
+    )
+    for step in range(scheduler.next_step, total):
+        report = train_step(e, bank, step, opt, advopt, scheduler, advscheduler)
+        if (step + 1) % 100 == 0 or step == 0:
+            e.log("B", step + 1, report)
+            print(
+                f"B_STEP: {step + 1}/{total} seconds={report['seconds_per_step']:.3f}",
+                flush=True,
             )
-            * 3
+        endpoint = (step + 1) % 1000 == 0 or step + 1 == total
+        if endpoint or (step + 1) % e.cfg.get("resume_interval", 100) == 0:
+            progress.save(endpoint=endpoint)
+    if progress.phase == "train":
+        progress.phase = "audit"
+        progress.save()
+    # Audit transactions: a completed endpoint is never retrained on resume.
+    # An interrupted current endpoint is replayed from the prior saved RNG boundary.
+    for step in range(1000, total + 1, 1000):
+        if step in progress.audit_done:
+            continue
+        load_checkpoint(
+            e.output / "checkpoints" / f"purifier-{step}.pt", {"purifier": e.purifier}
         )
-        for i in ids:
-            b = collate([experiment.fit[int(i)]], experiment.device)
-            x = b["x"]
-            y = gray(x)
-            with torch.no_grad():
-                fx, v, _ = experiment.mfm(x, b["rect"])
-                fy, _, _ = experiment.mfm(y, b["rect"])
-                ex = experiment.reid(x, b["rect"])["embedding"]
-                ey = experiment.reid(y, b["rect"])["embedding"]
-            px = experiment.purifier(fx, v)
-            py = experiment.purifier(fy, v)
-            cross = experiment.purifier(fy, v, source_mask=px["mask"])
-            loss = x.sum() * 0
-            for out, e in ((px, ex), (py, ey)):
-                all_loss = masked_mean((out["all"] - out["standardized"]).square(), v)
-                id_loss = (out["identity"] - e).square().sum(1).mean()
-                occupancy = pooled(out["mask"], v).mean(1)
-                mask_loss = (
-                    F.relu(0.1 - occupancy).square() + F.relu(occupancy - 0.5).square()
-                ).mean()
-                loss = loss + (all_loss + 0.1 * id_loss + 10 * mask_loss) / 32
-            for out in (px, py, cross):
-                loss = loss + weighted_cross_entropy(
-                    out["logits"],
-                    b["label"],
-                    experiment.weights,
-                    weight_sum=denom,
-                )
-            loss.backward()
-        ramp = max(0, min(1, (step - 999) / 1000))
-        if ramp:
-            pairs = experiment.sampler.sample(
-                rng_for(experiment.seed, "B", "generator_pairs", step)
-            )
-            for a, b, s, _ in pairs:
-                ba = collate([experiment.fit[a]], experiment.device)
-                bb = collate([experiment.fit[b]], experiment.device)
-                pa, va = semantic_view(experiment, ba, int(rng.integers(3)))
-                pb, vb = semantic_view(experiment, bb, int(rng.integers(3)))
-                logit = experiment.sem_attacker(pa["semantic"], va, pb["semantic"], vb)
-                (
-                    -0.1
-                    * ramp
-                    * F.binary_cross_entropy_with_logits(logit, logit.new_tensor([s]))
-                    / 16
-                ).backward()
-        schedule(opt, step, total)
-        norm = update(opt)
-        if (step + 1) % 100 == 0:
-            experiment.log(
-                "B", step + 1, {"gradient_norm": norm, "adversarial_ramp": ramp}
-            )
-        if (step + 1) % 1000 == 0 or step + 1 == total:
-            save_checkpoint(
-                experiment.output / "checkpoints" / f"purifier-{step + 1}.pt",
-                {"purifier": experiment.purifier, "attacker": experiment.sem_attacker},
-                opt,
-                step + 1,
-                "B",
-                {},
-            )
-    # Select among all registered endpoints using independently trained readouts.
-    best = None
-    for path in sorted(
-        (experiment.output / "checkpoints").glob("purifier-*.pt"),
-        key=lambda p: int(p.stem.split("-")[-1]),
-    ):
-        checkpoint = load_checkpoint(path, {"purifier": experiment.purifier})
-        freeze(experiment.purifier)
-        experiment.feature_audit_tag = "step-" + str(checkpoint["step"])
-        report = validate_purifier(experiment)
+        freeze(e.purifier)
+        e.feature_audit_tag = f"step-{step}"
+        print(f"B_AUDIT_START: endpoint={step}", flush=True)
+        start = time.perf_counter()
+        report = validate_purifier(e)
+        e.log(
+            "B-audit",
+            step,
+            {"seconds": time.perf_counter() - start, "passed": report["passed"]},
+        )
         if report["passed"]:
             clinical_min = min(
                 r["macro_auroc"] for r in report["clinical"]["readouts"]["sem_linear"]
             )
             strongest = max(r["sem_strongest"] for r in report["identity"]["checks"])
-            key = (clinical_min, -strongest, -checkpoint["step"])
-            if best is None or key > best[0]:
-                best = (key, report)
-                save_checkpoint(
-                    experiment.output / "checkpoints/purifier.pt",
-                    {"purifier": experiment.purifier},
-                    None,
-                    checkpoint["step"],
-                    "B",
-                    report,
-                )
-    experiment.mark(
-        "B",
-        best is not None,
-        best[1] if best else {"reason": "No endpoint passed frozen-feature acceptance"},
-    )
+            key = [clinical_min, -strongest, -report["l_all"], -step]
+            if progress.best is None or tuple(key) > tuple(progress.best["key"]):
+                progress.best = {"key": key, "step": step, "report": report}
+        progress.audit_done.append(step)
+        progress.save()
+    require(progress.best is not None, "No endpoint passed frozen-feature acceptance")
+    best = progress.best
     load_checkpoint(
-        experiment.output / "checkpoints/purifier.pt", {"purifier": experiment.purifier}
+        e.output / "checkpoints" / f"purifier-{best['step']}.pt",
+        {"purifier": e.purifier},
     )
-    freeze(experiment.purifier)
-    tau = identity_threshold(experiment)
-    experiment.supervision = TeacherSupervision(
-        experiment.clinical,
-        experiment.mfm,
-        experiment.reid,
-        experiment.purifier,
-        experiment.weights,
-        tau,
+    freeze(e.purifier)
+    save_checkpoint(
+        e.output / "checkpoints/purifier.pt",
+        {"purifier": e.purifier},
+        None,
+        best["step"],
+        "B",
+        best["report"],
     )
+    # Numerical gates alone do not close known missing design diagnostics.
+    from ccrr.training.b_resources import SCIENTIFIC_GAPS
+
+    gaps = list(SCIENTIFIC_GAPS)
+    write_json(
+        e.output / "b_scientific_status.json",
+        {"numerical_gates_passed": True, "protocol_complete": False, "missing": gaps},
+    )
+    e.mark("B", False, {**best["report"], "protocol_complete": False, "missing": gaps})
 
 
 def validate_purifier(experiment):
