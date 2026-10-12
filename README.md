@@ -69,6 +69,8 @@ python -m ccrr.cli train --config /srv/ccrr/a.yaml --stage A --resume
 
 新 checkpoint 容器为 `CCRR-CHECKPOINT-2`；旧 v1/selected-only 权重不能作为完整 A 恢复。恢复使用最近持久 optimizer 边界，默认每 100 步及规定端点保存。早期错误 Purifier 结构权重与修正后的 D_id/A_sem 不兼容。
 
+正在运行 A 时，可在另一张已确认空闲的 H100 上用 `scripts/probe_stage_a_speed.py --config /srv/ccrr/a.yaml --out /srv/ccrr/checks/new-speed-probe` 做隔离性能回放。输出目录必须是仓库及正式输出目录之外的新目录；内含私有 checkpoint 副本，不可提交。脚本复制最近一个未完成的临床子阶段 checkpoint，分别测试原路径、2 个 CPU 线程、合并梯度有限性检查及热缓存候选；仍用生产分类循环、microbatch=1、原 FP32/确定性/采样与优化器设置。每个候选必须与原路径的 loss、最终参数/梯度、AdamW 状态及 RNG 精确一致。各自最多回放 10 步，更新只发生在隔离副本，不计入正式训练。热缓存是预加载回放样本后的上界，计时不含加载、保存和验证，不能直接推算整个 Stage A 的加速比。该工具不部署优化、不修改运行中的进程，也不放宽源码恢复绑定；正式切换仍需实测和独立的恢复迁移验证。
+
 ## 工程接口
 
 `src/ccrr/` 按 data、teachers、representation、codec、communication、runtime、training、calibration、evaluation 分工。保留全部 A–J 实现；`scripts/run_registered_matrix.py` 默认只生成四组预登记配置，显式 `--run` 才启动训练。
