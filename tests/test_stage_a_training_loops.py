@@ -51,9 +51,12 @@ class TinyClinical(nn.Module):
 
 class TinyMFM(nn.Module):
     def forward(self, x, rects):
+        # This synthetic fixture uses pooling, unlike the real PanDerm backbone.
+        # Keep its pooling on CPU for deterministic backward, retaining autograd
+        # through the device copies and running the probe/optimizer on x.device.
         f = torch.nn.functional.adaptive_avg_pool2d(
-            x.mean(1, keepdim=True), (14, 14)
-        ).expand(-1, 768, -1, -1)
+            x.mean(1, keepdim=True).cpu(), (14, 14)
+        ).to(x.device).expand(-1, 768, -1, -1)
         return f, torch.ones_like(f[:, :1]), None
 
 

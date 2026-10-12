@@ -99,7 +99,11 @@ def test_continuous_matches_interrupt_restore_bitwise(tmp_path, start, split, en
     assert whole == before + after
     equal_nested(expected, actual)
     p.finish(tmp_path / "selected.pt")
-    selected = torch.load(tmp_path / "selected.pt", weights_only=True)
+    # Selected models retain their training device in the checkpoint, while
+    # AProgress keeps selection snapshots on CPU. Compare exact values on CPU.
+    selected = torch.load(
+        tmp_path / "selected.pt", map_location="cpu", weights_only=True
+    )
     assert selected["step"] == p.selection["step"]
     assert selected["optimizer"] is None
     assert selected["extra"]["budget_completed"] == end
