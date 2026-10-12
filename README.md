@@ -79,7 +79,9 @@ Stage A 另支持 `microbatch: 4` 或 `8` 的真正批量执行（实现接受 1
 
 批量变化会改变浮点归约及 Dropout/stochastic-depth 的 RNG 消耗，不能声称与单图训练逐位一致。`microbatch` 已纳入恢复绑定；切换时使用新输出目录从官方基础权重开始，保留旧运行，不直接接续旧 checkpoint。相同配置内的完整保存/恢复仍需精确一致。可在一张已确认空闲的 H100 使用 `scripts/check_stage_a_batch_speed.py --config /srv/ccrr/a.yaml --out /srv/ccrr/checks/new-batch-speed` 做一次 1/4/8 比较：使用真实已验收 fit 像素、CPU 热缓存、官方 EfficientNet-B0 和生产分类循环，每档重复两次并比较完整状态；为测量全骨干反向，仅在隔离测速中把调度器起点设为 750。测速不会读取或修改正式 checkpoint，所有更新丢弃，不能作为模型能力证据或全 Stage A 吞吐承诺。
 
-已有 1/4/8 结果时，追加 `--microbatches 8 16` 只比较这两档。报告中的 `reference_microbatch` 是本次最小档位，`fastest_microbatch` 按实测耗时选择，`speedup_vs_reference` 仅比较本次测量；16 更慢时保留 8，不把历史单图结果当作本轮基准。调用前检查目标 GPU 无其他计算进程，脚本不停止任何任务。短程 Clinical 测速尚未覆盖真实 MFM/ReID 批量接口、训练显存与恢复；旧 batch=1 接口报告及当前 Preflight 不能单独证明新的批量执行已完整准入，正式重启前仍须补齐这些证据。
+已有 1/4/8 结果时，追加 `--microbatches 8 16` 只比较这两档。报告中的 `reference_microbatch` 是本次最小档位，`fastest_microbatch` 按实测耗时选择，`speedup_vs_reference` 仅比较本次测量；16 更慢时保留 8，不把历史单图结果当作本轮基准。调用前检查目标 GPU 无其他计算进程，脚本不停止任何任务。短程 Clinical 测速尚未覆盖真实 MFM/ReID 批量接口、训练显存与恢复，不能替代批量准入。
+
+选定档位后，在空闲 H100 上运行 `scripts/check_stage_a_batch_admission.py --config <原配置> --out <新诊断目录> --training-output <尚不存在的新训练目录> --microbatch 16`。逐个检查三个官方模型的 RGB/Gray、同批不同有效区域、逐样本输入梯度及 PanDerm 官方 patch tokens；在实际 fit 图像上，用生产循环比较两步连续更新与一步保存／重载再一步的完整 checkpoint，实际分配 AdamW 状态，检查 BN buffers、可训练参数及冻结 PanDerm。为覆盖全骨干更新，诊断调度起点固定为 750；所有临时更新保留在诊断目录，不读写旧运行，不初始化 MFM 全集统计，不代表医学能力或长程性能。通过后生成 `config.yaml`，保留原资源与接口证据，设置选定 microbatch、8 GiB 像素缓存、新训练输出和 `batch_execution_report` 的路径／SHA-256。然后执行 `python -m ccrr.cli preflight --config <诊断目录>/config.yaml --stage A`。Stage A 的 microbatch>1 现在必须有与源码、执行配置、环境、权重和检查器绑定的三模型批量／恢复报告；旧 batch=1 报告不能单独放行。microbatch=1 的原准入规则保留；源码变化仍会阻止直接恢复旧版 checkpoint。该流程不启动正式训练。
 
 ## 工程接口
 

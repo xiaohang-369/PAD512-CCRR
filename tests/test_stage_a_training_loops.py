@@ -132,7 +132,7 @@ def cache_fixture(data, root):
 
 @pytest.mark.parametrize("kind", ["clinical", "mfm_probe"])
 @pytest.mark.parametrize("cached", [False, True])
-@pytest.mark.parametrize("micro", [1, 4, 8])
+@pytest.mark.parametrize("micro", [1, 4, 8, 16])
 def test_actual_a_loop_resume_matches_uninterrupted(
     tmp_path, monkeypatch, kind, cached, micro
 ):
@@ -242,7 +242,7 @@ class IdentityData(Data):
 
 
 @pytest.mark.parametrize("cached", [False, True])
-@pytest.mark.parametrize("micro", [1, 4, 8])
+@pytest.mark.parametrize("micro", [1, 4, 8, 16])
 def test_reid_actual_loop_restores_sampling_optimizer_and_selection(
     tmp_path, monkeypatch, cached, micro
 ):

@@ -97,20 +97,35 @@ def load_real_model(args, report):
     return freeze(model)
 
 
-def check_inputs(model, kind):
+def check_inputs(model, kind, batch_size=1):
     cases = []
-    rgb = torch.rand(1, 3, 512, 512, device=next(model.parameters()).device)
-    for rect in [(0, 0, 512, 512), (0, 64, 512, 384)]:
+    rgb = torch.rand(batch_size, 3, 512, 512, device=next(model.parameters()).device)
+    layouts = [[r] * batch_size for r in [(0, 0, 512, 512), (0, 64, 512, 384)]]
+    if batch_size > 1:
+        layouts.append(
+            [
+                ((0, 64, 512, 384) if i % 2 else (64, 0, 384, 512))
+                for i in range(batch_size)
+            ]
+        )
+    for rects in layouts:
         source = rgb.clone()
-        if rect[1]:
-            source[:, :, :64] = 0
-            source[:, :, 448:] = 0
+        for i, (left, top, width, height) in enumerate(rects):
+            source[i, :, :top] = 0
+            source[i, :, top + height :] = 0
+            source[i, :, :, :left] = 0
+            source[i, :, :, left + width :] = 0
         for domain, value in (("rgb", source), ("gray", gray(source))):
             x = value.detach().clone().requires_grad_(True)
-            case = {"domain": domain, "valid_rect": rect, "input_shape": list(x.shape)}
+            case = {
+                "domain": domain,
+                "valid_rect": rects[0],
+                "valid_rects": rects,
+                "input_shape": list(x.shape),
+            }
             if kind == "panderm":
-                feature, coverage, transform = model(x, [rect])
-                assert feature.shape == (1, 768, 14, 14)
+                feature, coverage, transform = model(x, rects)
+                assert feature.shape == (batch_size, 768, 14, 14)
                 objective = feature[:, :16].square().mean()
                 captured = []
                 hook = model.model.norm.register_forward_hook(
@@ -118,32 +133,39 @@ def check_inputs(model, kind):
                 )
                 try:
                     with torch.no_grad():
-                        a, _, _ = adapt(x.detach(), [rect], 224, panderm=True)
+                        a, _, _ = adapt(x.detach(), rects, 224, panderm=True)
                         cls = model.model.forward_features(a, is_train=False)
                 finally:
                     hook.remove()
-                patches = captured[0][:, 1:].transpose(1, 2).reshape(1, 768, 14, 14)
+                patches = (
+                    captured[0][:, 1:].transpose(1, 2).reshape(batch_size, 768, 14, 14)
+                )
                 assert torch.equal(patches, feature.detach())
                 assert torch.equal(cls, captured[0][:, 0])
                 case["official_norm_patch_tokens_exact"] = True
                 case["feature_variance"] = float(feature.detach().var())
                 case["effective_tokens"] = int((coverage > 0).sum())
             elif kind == "efficientnet_b0":
-                logits, feature, coverage, transform = model(x, [rect], spatial=True)
-                assert logits.shape == (1, 6) and feature.shape == (1, 1280, 16, 16)
+                logits, feature, coverage, transform = model(x, rects, spatial=True)
+                assert logits.shape == (batch_size, 6) and feature.shape == (
+                    batch_size,
+                    1280,
+                    16,
+                    16,
+                )
                 assert torch.isfinite(logits).all()
                 objective = logits.square().mean()
                 case["logits_shape"] = list(logits.shape)
             else:
-                result = model(x, [rect])
+                result = model(x, rects)
                 feature, coverage, transform = (
                     result["spatial"],
                     result["coverage"],
                     result["transform"],
                 )
-                assert feature.shape == (1, 2048, 16, 16)
-                assert result["embedding"].shape == (1, 2048)
-                assert result["logits"].shape == (1, 863)
+                assert feature.shape == (batch_size, 2048, 16, 16)
+                assert result["embedding"].shape == (batch_size, 2048)
+                assert result["logits"].shape == (batch_size, 863)
                 assert all(
                     torch.isfinite(v).all()
                     for v in result.values()
@@ -156,10 +178,11 @@ def check_inputs(model, kind):
                 case["embedding_l2_norm"] = float(norm.detach()[0])
                 objective = result["embedding"][:, :16].sum()
             assert torch.isfinite(feature).all() and torch.isfinite(coverage).all()
-            assert coverage.shape == (1, 1, *feature.shape[-2:])
+            assert coverage.shape == (batch_size, 1, *feature.shape[-2:])
             assert ((coverage >= 0) & (coverage <= 1)).all()
             grad = torch.autograd.grad(objective, x)[0]
-            assert torch.isfinite(grad).all() and grad.abs().sum() > 0
+            per_sample = grad.flatten(1).abs().sum(1)
+            assert torch.isfinite(grad).all() and (per_sample > 0).all()
             assert all(
                 not p.requires_grad and p.grad is None for p in model.parameters()
             )
@@ -169,13 +192,23 @@ def check_inputs(model, kind):
                 coverage_min=float(coverage.min()),
                 coverage_max=float(coverage.max()),
                 input_gradient_l1=float(grad.abs().sum()),
+                per_sample_input_gradient_l1=per_sample.tolist(),
                 input_gradient_max=float(grad.abs().max()),
                 transform=transform,
                 finite=True,
                 frozen_parameter_gradients_absent=True,
             )
             cases.append(case)
-            print("INTERFACE_PASS:", kind, domain, rect, flush=True)
+            print(
+                "INTERFACE_PASS:",
+                kind,
+                domain,
+                "batch=",
+                batch_size,
+                "mixed_rects=",
+                len(set(rects)) > 1,
+                flush=True,
+            )
     return cases
 
 

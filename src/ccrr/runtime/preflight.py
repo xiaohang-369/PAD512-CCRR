@@ -42,6 +42,10 @@ def interface_evidence(item, name, config, env):
     if not path or not Path(path).is_file() or sha256(path) != entry.get("sha256"):
         return False
     r = json.loads(Path(path).read_text())
+    return interface_matches(item, name, config, env, r)
+
+
+def interface_matches(item, name, config, env, r, batch_size=1):
     cases = r.get("forward_backward", [])
     return bool(
         r.get("passed")
@@ -55,7 +59,8 @@ def interface_evidence(item, name, config, env):
         == ("cuda" if config.get("device", "cuda").startswith("cuda") else "cpu")
         and r.get("torch") == env["packages"]["torch"]
         and r.get("parameters_and_buffers_unchanged")
-        and len(cases) == 4
+        and r.get("batch_size", 1) == batch_size
+        and len(cases) == (6 if batch_size > 1 else 4)
         and {c.get("domain") for c in cases} == {"rgb", "gray"}
         and all(
             c.get("finite")
@@ -74,10 +79,90 @@ def interface_evidence(item, name, config, env):
     )
 
 
+def batch_checker_sources():
+    root = Path(__file__).parents[3]
+    return {
+        name: sha256(root / "scripts" / name)
+        for name in (
+            "check_stage_a_batch_admission.py",
+            "check_teacher_interface.py",
+            "probe_stage_a_speed.py",
+        )
+    }
+
+
+def batch_evidence(config, env):
+    """Bind real batched evidence to this execution, not a batch-1 report."""
+    from ccrr.training.a_state import binding
+
+    try:
+        entry = config.get("batch_execution_report", {})
+        path = Path(entry["path"])
+        if sha256(path) != entry.get("sha256"):
+            return False
+        r = json.loads(path.read_text())
+        n = config["microbatch"]
+        if not (
+            r.get("passed")
+            and r.get("microbatch") == n
+            and r.get("configuration_binding") == binding(config)
+            and r.get("checker_sources") == batch_checker_sources()
+            and r.get("execution_flags")
+            == {
+                "fp32": True,
+                "strict_determinism": True,
+                "matmul_tf32": False,
+                "cudnn_tf32": False,
+                "cudnn_benchmark": False,
+            }
+            and r.get("formal_training_started") is False
+            and (not config["device"].startswith("cuda") or r.get("H100_validated"))
+        ):
+            return False
+        for name in BASE:
+            model = r["models"][name]
+            interface, training = model["interface"], model["training"]
+            if not interface_matches(
+                config["weights"][name], name, config, env, interface, n
+            ):
+                return False
+            cases = interface["forward_backward"]
+            if not all(
+                c["input_shape"][0] == n
+                and len(c["per_sample_input_gradient_l1"]) == n
+                and all(v > 0 for v in c["per_sample_input_gradient_l1"])
+                for c in cases
+            ):
+                return False
+            if not any(len({tuple(v) for v in c["valid_rects"]}) > 1 for c in cases):
+                return False
+            if (
+                not all(
+                    training.get(k) is True
+                    for k in (
+                        "resume_state_match",
+                        "finite_nonzero_gradients",
+                        "optimizer_state_allocated",
+                        "buffers_unchanged",
+                        "trainable_parameters_updated",
+                        "fp32",
+                    )
+                )
+                or training.get("steps") != 2
+            ):
+                return False
+            if name == "panderm" and not training.get("frozen_backbone_unchanged"):
+                return False
+        return True
+    except (OSError, KeyError, ValueError, TypeError):
+        return False
+
+
 def inspect(config, stage="all"):
     if stage not in STAGES:
         raise ValueError("Unknown preflight stage")
     env, missing, limitations, weights = environment(), [], [], {}
+    batch_verified = None
     cuda = config.get("device", "cuda").startswith("cuda")
     if cuda:
         if not env["devices"] or not all("H100" in d for d in env["devices"]):
@@ -192,6 +277,12 @@ def inspect(config, stage="all"):
             ),
         ]
         missing.extend(label for passed, label in checks if not passed)
+        if type(config.get("microbatch", 1)) is int and config.get("microbatch", 1) > 1:
+            batch_verified = batch_evidence(config, env)
+            if not batch_verified:
+                missing.append(
+                    "A batched execution requires bound three-model batch/resume evidence"
+                )
     data = None
     try:
         data = verify_dataset(config.get("data_root", ""), pixels=True)
@@ -234,6 +325,7 @@ def inspect(config, stage="all"):
         "stage": stage,
         "environment": env,
         "weights": weights,
+        "batch_execution_verified": batch_verified,
         "data": data,
         "ready_for_stage": not missing,
         "ready_for_teacher_training": stage in ("A", "all") and not missing,

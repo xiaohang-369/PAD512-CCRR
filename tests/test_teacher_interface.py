@@ -25,7 +25,7 @@ class SyntheticIdentity(nn.Module):
         return {
             "embedding": self.scale * F.normalize(features, dim=1),
             "spatial": features[:, :, None, None].expand(-1, -1, 16, 16),
-            "coverage": x.new_ones((1, 1, 16, 16)),
+            "coverage": x.new_ones((len(x), 1, 16, 16)),
             "logits": features[:, :863],
             "transform": rects,
         }
@@ -47,3 +47,21 @@ def test_identity_checker_device_dtype_and_normalization_gate(scale):
     assert {c["domain"] for c in cases} == {"rgb", "gray"}
     assert all(c["finite"] and c["input_gradient_l1"] > 0 for c in cases)
     assert all(c["frozen_parameter_gradients_absent"] for c in cases)
+
+
+def test_batched_interface_checks_each_sample_and_mixed_geometry():
+    check = runpy.run_path(
+        str(Path(__file__).parents[1] / "scripts/check_teacher_interface.py")
+    )["check_inputs"]
+    model = SyntheticIdentity().to(os.environ.get("CCRR_TEST_DEVICE", "cpu")).eval()
+    cases = check(model, "resnet50", 2)
+    assert len(cases) == 6
+    assert all(len(c["per_sample_input_gradient_l1"]) == 2 for c in cases)
+    assert any(len(set(c["valid_rects"])) == 2 for c in cases)
+
+    class Broken(SyntheticIdentity):
+        def forward(self, x, rects):
+            return super().forward(torch.cat((x[:1], x[1:].detach())), rects)
+
+    with pytest.raises(AssertionError):
+        check(Broken().to(model.anchor.device).eval(), "resnet50", 2)
