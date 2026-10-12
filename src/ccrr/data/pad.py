@@ -10,6 +10,7 @@ import torch
 from torch.nn import functional as F
 from ccrr.errors import require
 from ccrr.codec.metadata import FIELDS, CLASSES
+from ccrr.data.resize import teacher_resize
 
 
 def preprocess(path, size=512):
@@ -59,12 +60,9 @@ def adapt(x, rects, size, normalize=True, panderm=False):
         x0, y0, w, h = map(int, rect)
         nw = max(1, math.floor(size * w / max(w, h) + 0.5))
         nh = max(1, math.floor(size * h / max(w, h) + 0.5))
-        resized = F.interpolate(
+        resized = teacher_resize(
             img[None, :, y0 : y0 + h, x0 : x0 + w],
-            size=(nh, nw),
-            mode="bilinear",
-            align_corners=False,
-            antialias=True,
+            (nh, nw),
         )
         l, t = (size - nw) // 2, (size - nh) // 2
         out.append(

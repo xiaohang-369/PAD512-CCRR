@@ -46,6 +46,8 @@ PanDerm 官方源码 commit 固定为 `fd7a80748ba7fc3e203fed88f909f4689d0d6f24`
 
 在 H100 上检查 `nvidia-smi`，设置 `CUBLAS_WORKSPACE_CONFIG=:4096:8`。逐模型运行 `scripts/check_teacher_interface.py --device cuda`，通过 `--model`、`--weights`、`--sha256`、`--out` 提供模板对应资源；PanDerm 另需 `--source`。四组 RGB/灰度和有效矩形检查均须通过。把各输出报告的真实路径及 SHA-256 填入外部配置的 `interface_reports`，不能用 Mac CPU 报告替代。
 
+PyTorch 2.6 的 CUDA 抗锯齿双线性缩放反向不支持严格确定性。教师适配对同尺寸缩放直接返回输入；需要缩放和输入梯度时，保持原生设备前向像素，用 CPU 上同参数线性缩放的伴随计算一阶输入梯度，再传回原设备。严格确定性仍开启，`antialias=True` 和冻结 PIL 数据预处理不变。这一路径增加 CPU/GPU 传输开销，不支持二阶梯度；需在目标 H100 实测正确性和耗时。接口报告绑定 `pad.py`、`resize.py` 与计算策略，旧报告须重跑。使用 `CUDA_VISIBLE_DEVICES` 限定一张已确认可用的卡后，先运行 `CCRR_TEST_DEVICE=cuda python -m pytest tests/test_teacher_resize.py -q`，再执行真实权重接口检查。
+
 ```bash
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 python -m pytest -q

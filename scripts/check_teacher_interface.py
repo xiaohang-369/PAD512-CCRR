@@ -17,6 +17,7 @@ from torchvision import models
 from ccrr.config import sha256
 from ccrr.runtime.support import seed_everything, environment
 from ccrr.data.pad import adapt
+from ccrr.data.resize import POLICY, teacher_input_sources
 from ccrr.teachers.adapters import (
     ClinicalModel,
     IdentityModel,
@@ -205,6 +206,8 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=root, text=True
         ).strip(),
         "adapter_source_sha256": sha256(root / "src/ccrr/teachers/adapters.py"),
+        "teacher_input_sources": teacher_input_sources(),
+        "teacher_resize_policy": POLICY,
         "checker_source_sha256": sha256(__file__),
         "torch": torch.__version__,
         "formal_training_started": False,

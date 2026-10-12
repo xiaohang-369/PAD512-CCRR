@@ -6,6 +6,7 @@ from pathlib import Path
 from ccrr.runtime.support import environment
 from ccrr.config import sha256
 from ccrr.data.admission import verify_dataset
+from ccrr.data.resize import POLICY, teacher_input_sources
 from ccrr.errors import CCRRError
 
 STAGES = ("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "all")
@@ -48,6 +49,8 @@ def interface_evidence(item, name, config, env):
         and r.get("sha256") == item.get("sha256")
         and r.get("adapter_source_sha256")
         == sha256(Path(__file__).parents[1] / "teachers/adapters.py")
+        and r.get("teacher_input_sources") == teacher_input_sources()
+        and r.get("teacher_resize_policy") == POLICY
         and r.get("device")
         == ("cuda" if config.get("device", "cuda").startswith("cuda") else "cpu")
         and r.get("torch") == env["packages"]["torch"]
