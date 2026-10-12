@@ -345,7 +345,7 @@ def test_audit_progress_safe_serialization_and_changed_binding(tmp_path):
         BProgress(e, opt, adv, sched, asched)
 
 
-def test_b_preflight_cannot_mistake_engineering_for_scientific_admission(
+def test_b_preflight_requires_new_bound_engineering_evidence(
     tmp_path, monkeypatch
 ):
     from ccrr.runtime.preflight import inspect
@@ -359,7 +359,7 @@ def test_b_preflight_cannot_mistake_engineering_for_scientific_admission(
     report = inspect(cfg, "B")
     assert report["b_frozen_teachers_verified"] is True
     assert not report["ready_for_stage"]
-    assert any("no-branch" in item for item in report["missing"])
+    assert any("B batched execution evidence" in item for item in report["missing"])
 
 
 def test_preflight_refuses_A_output_before_any_write(tmp_path):

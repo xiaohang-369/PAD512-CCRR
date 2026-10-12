@@ -300,6 +300,7 @@ def inspect(config, stage="all"):
             verify_teachers,
             execution_options,
             SCIENTIFIC_GAPS,
+            verify_execution_report,
         )
 
         try:
@@ -309,12 +310,16 @@ def inspect(config, stage="all"):
         except (CCRRError, OSError, KeyError, TypeError, ValueError) as exc:
             b_teachers_verified = False
             missing.append("B frozen teacher dependencies: " + str(exc))
+        try:
+            verify_execution_report(config)
+        except (CCRRError, OSError, KeyError, TypeError, ValueError) as exc:
+            missing.append("B batched execution evidence: " + str(exc))
         # Never allow the old subset of numeric gates to certify section 7.7.
         missing.extend(
             "B scientific admission not implemented: " + gap for gap in SCIENTIFIC_GAPS
         )
         limitations.append(
-            "B H100 batch throughput and recovery require a new B-specific engineering report"
+            "B execution admission does not establish purification efficacy; full endpoint audits remain required. Section 8.6 heatmap ranking requires separate downstream validation."
         )
     elif stage not in ("A", "all"):
         output = Path(config.get("output", "."))

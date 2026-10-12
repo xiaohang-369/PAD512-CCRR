@@ -9,11 +9,60 @@ from ccrr.errors import require
 
 
 NAMES = ("clinical", "clinical_rgb", "clinical_gray", "mfm_probe", "reid")
-SCIENTIFIC_GAPS = (
-    "section 7.7 separately trained no-branch control and branch diagnostics",
-    "section 26.3 post-adapted training attacker diagnostic",
-    "local mask/feature functional validation",
-)
+# Implementation availability only; trained scientific acceptance is a separate gate.
+SCIENTIFIC_GAPS = ()
+
+
+def verify_execution_report(cfg):
+    from ccrr.training.b_state import binding
+
+    entry = cfg.get("b_execution_report", {})
+    path = Path(entry.get("path", ""))
+    require(
+        path.is_file() and sha256(path) == entry.get("sha256"),
+        "B execution report missing/digest mismatch",
+    )
+    r = json.loads(path.read_text())
+    checker = Path(__file__).resolve().parents[3] / "scripts/check_stage_b_host.py"
+    require(
+        checker.is_file() and r.get("checker_sha256") == sha256(checker),
+        "B checker source mismatch",
+    )
+    devices = r.get("environment", {}).get("devices", [])
+    require(len(devices) == 1 and "H100" in devices[0], "B report requires one H100")
+    require(
+        r.get("version") == "CCRR-B-ENGINEERING-2"
+        and r.get("engineering_passed") is True
+        and r.get("formal_training_started") is False,
+        "B execution report version/status mismatch",
+    )
+    require(
+        r.get("stage_a_freeze_sha256") == cfg["stage_a_source"]["freeze_sha256"],
+        "B report teacher mismatch",
+    )
+    rows = [v for v in r["variants"] if v["microbatch"] == cfg.get("microbatch", 1)]
+    require(len(rows) == 1, "B report microbatch mismatch")
+    v = rows[0]
+    require(
+        v.get("binding") == binding({**cfg, "b_diagnostic": True}),
+        "B report source/config/environment mismatch",
+    )
+    require(
+        v.get("complete_resume_state_match") is True
+        and v.get("frozen_teachers_unchanged") is True
+        and v.get("functional", {}).get("passed") is True
+        and v.get("control_replay", {}).get("complete_resume_state_match") is True,
+        "B report incomplete execution coverage",
+    )
+    require(
+        v.get("audit_probe", {}).get("representations") == ["raw", "control", "sem"]
+        and v["audit_probe"]
+        .get("post_adaptation_probe", {})
+        .get("original_attacker_unchanged")
+        is True,
+        "B audit/control/adaptation coverage missing",
+    )
+    return True
 
 
 def verify_teachers(cfg):

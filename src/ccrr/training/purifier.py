@@ -59,6 +59,9 @@ def stage_b(experiment):
     import time
 
     e = experiment
+    from ccrr.training.b_resources import verify_execution_report
+
+    verify_execution_report(e.cfg)
     require(
         e.mfm is not None and bool(e.purifier.stats_ready), "Teacher stages required"
     )
@@ -96,13 +99,17 @@ def stage_b(experiment):
     if progress.phase == "train":
         progress.phase = "audit"
         progress.save()
+    from ccrr.training.b_control import prepare_control
+
+    prepare_control(e, bank)
     # Audit transactions: a completed endpoint is never retrained on resume.
     # An interrupted current endpoint is replayed from the prior saved RNG boundary.
     for step in range(1000, total + 1, 1000):
         if step in progress.audit_done:
             continue
         load_checkpoint(
-            e.output / "checkpoints" / f"purifier-{step}.pt", {"purifier": e.purifier}
+            e.output / "checkpoints" / f"purifier-{step}.pt",
+            {"purifier": e.purifier, "attacker": e.sem_attacker},
         )
         freeze(e.purifier)
         e.feature_audit_tag = f"step-{step}"
@@ -139,15 +146,28 @@ def stage_b(experiment):
         "B",
         best["report"],
     )
-    # Numerical gates alone do not close known missing design diagnostics.
-    from ccrr.training.b_resources import SCIENTIFIC_GAPS
-
-    gaps = list(SCIENTIFIC_GAPS)
     write_json(
         e.output / "b_scientific_status.json",
-        {"numerical_gates_passed": True, "protocol_complete": False, "missing": gaps},
+        {
+            "feature_acceptance_passed": True,
+            "protocol_complete": True,
+            "no_branch_control_sha256": e.no_branch_control_sha256,
+            "local_heatmap_ranking_validated": False,
+            "limitations": [
+                "Feature purification acceptance only; section 8.6 heatmap weighting and downstream image privacy remain unvalidated"
+            ],
+        },
     )
-    e.mark("B", False, {**best["report"], "protocol_complete": False, "missing": gaps})
+    e.mark(
+        "B",
+        True,
+        {
+            **best["report"],
+            "protocol_complete": True,
+            "no_branch_control_sha256": e.no_branch_control_sha256,
+            "local_heatmap_ranking_validated": False,
+        },
+    )
 
 
 def validate_purifier(experiment):

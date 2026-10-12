@@ -7,6 +7,7 @@ endpoint readout/bootstrap studies (those costs are reported separately).
 """
 
 import argparse
+import copy
 import gc
 import json
 from pathlib import Path
@@ -31,7 +32,60 @@ from ccrr.training.b_state import BProgress, binding
 from ccrr.training.optimization import optimizer, TeacherSchedule
 from ccrr.training.feature_audit import FeatureAudit
 from ccrr.representation.purifier import SemanticAttacker
+from ccrr.training.b_control import ReconstructionControl, control_update
+from ccrr.training.b_functional import check_functional
+from ccrr.training.b_diagnostics import isolated_rng
+from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
+from ccrr.data.pad import rng_for
 from probe_stage_a_speed import exact_equal
+
+
+def control_replay(e):
+    """Same production control update: two continuous vs one/save/reload/one."""
+    root = e.output / "control-engineering"
+    root.mkdir()
+    with isolated_rng():
+
+        def run(name, count, resume=False):
+            seed_everything(e.seed)
+            model = ReconstructionControl(e.purifier.mean, e.purifier.std).to(e.device)
+            opt = optimizer([model], [1e-4])
+            sched = TeacherSchedule(opt, 10000)
+            path = root / (name + ".pt")
+            if resume:
+                raw = load_checkpoint(path, {"control": model}, opt)
+                sched.load_state_dict(raw["training_state"]["scheduler"])
+            for step in range(sched.next_step, sched.next_step + count):
+                ids = (
+                    rng_for(e.seed, "B-control", "images", step)
+                    .integers(len(e.fit), size=16)
+                    .tolist()
+                )
+                control_update(
+                    model, e.b_teacher_bank, ids, e.cfg["microbatch"], opt, sched
+                )
+            save_checkpoint(
+                path,
+                {"control": model},
+                opt,
+                sched.next_step,
+                "B-control-probe",
+                {},
+                training_state={"scheduler": sched.state_dict()},
+            )
+            return model, torch.load(path, map_location="cpu", weights_only=True)
+
+        _, full = run("full", 2)
+        run("split", 1)
+        model, split = run("split", 1, True)
+        require(exact_equal(full, split), "Control complete resume state mismatch")
+        e.no_branch_control = model.eval().requires_grad_(False)
+        e.no_branch_control_sha256 = sha256(root / "split.pt")
+    return {
+        "complete_resume_state_match": True,
+        "updates": 2,
+        "formal_control_training_completed": False,
+    }
 
 
 def replay(e, template, folder, steps, resume=False):
@@ -94,13 +148,40 @@ def audit_probe(e, count):
     start = time.perf_counter()
     scores = a.attack_scores(model, "sem", "p1")
     torch.cuda.synchronize()
+    scoring_seconds = time.perf_counter() - start
+    original = {
+        k: t.detach().cpu().clone() for k, t in e.sem_attacker.state_dict().items()
+    }
+    adapted = copy.deepcopy(e.sem_attacker).requires_grad_(True)
+    adapted_opt = optimizer([adapted], [1e-4])
+    for step in range(count):
+        a.attacker_update(
+            adapted,
+            adapted_opt,
+            "sem",
+            "mixed",
+            "spatial",
+            step,
+            total=1000,
+            rng_key="B-post-adapt-mixed",
+        )
+    unchanged = exact_equal(
+        original, {k: t.detach().cpu() for k, t in e.sem_attacker.state_dict().items()}
+    )
+    require(unchanged, "Post-adaptation copy changed original attacker")
     return {
+        "representations": list(a.representations),
         "feature_cache_seconds": cache_seconds,
         "cache_tensor_bytes": a.cache_bytes,
         "attacker_seconds_per_step": statistics.median(times[1:]),
-        "one_p1_nine_direction_scoring_seconds": time.perf_counter() - start,
+        "one_p1_nine_direction_scoring_seconds": scoring_seconds,
         "scoring_rows": sum(len(r["scores"]) for r in scores),
         "full_audit_completed": False,
+        "post_adaptation_probe": {
+            "updates": count,
+            "original_attacker_unchanged": unchanged,
+            "full_1000_updates_completed": False,
+        },
         "peak_allocated_gib": torch.cuda.max_memory_allocated() / 1024**3,
     }
 
@@ -215,6 +296,9 @@ def main():
                 ),
                 **metric,
             }
+            print("B_CONTROL_REPLAY_START", flush=True)
+            row["control_replay"] = control_replay(e)
+            row["functional"] = check_functional(e, e.b_teacher_bank)
             print("B_AUDIT_SPEED_START", flush=True)
             row["audit_probe"] = audit_probe(e, args.steps)
             row["frozen_teachers_unchanged"] = all(
@@ -241,6 +325,7 @@ def main():
         torch.cuda.empty_cache()
     fastest = min(results, key=lambda row: row["seconds_per_step"])["microbatch"]
     report = {
+        "version": "CCRR-B-ENGINEERING-2",
         "engineering_passed": True,
         "formal_training_started": False,
         "scientific_admission_complete": False,
@@ -258,7 +343,13 @@ def main():
     }
     write_json(out / "report.json", report)
     cfg.update(
-        output=str(out / "candidate-output"), microbatch=fastest, b_diagnostic=False
+        output=str(out / "candidate-output"),
+        microbatch=fastest,
+        b_diagnostic=False,
+        b_execution_report={
+            "path": str(out / "report.json"),
+            "sha256": sha256(out / "report.json"),
+        },
     )
     (out / "candidate-config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
     print("B_ENGINEERING_REPORT:", out / "report.json", flush=True)
