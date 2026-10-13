@@ -448,7 +448,41 @@ def main():
         "disposable_optimizer_updates": 2 * STEPS,
     }
     write_json(out / "report.json", report)
+    summary = {
+        "protocol": PROTOCOL,
+        "report_sha256": sha256(out / "report.json"),
+        "fixed_comparison_step": STEPS,
+        "existing_checkpoints_unchanged": True,
+        "formal_training_started": False,
+        "scientific_admission_complete": False,
+        "cohorts": run_record["cohorts"],
+        "final_paired_comparisons": comparisons,
+        "final": {},
+    }
+    for name, rows in trajectories.items():
+        last = rows[-1]
+        summary["final"][name] = {
+            "scores_all_images": last["scores"],
+            "diagnostics_64_patient_probes": {
+                role: {
+                    d: {
+                        k: v[k]
+                        for k in (
+                            "saturation_fraction",
+                            "tanh_derivative_mean",
+                            "derivative_below_1e_minus3_fraction",
+                            "channel_entropy_bits_min_mean_max",
+                            "between_image_normalized_code_variance_same_site_mean",
+                        )
+                    }
+                    for d, v in domains.items()
+                }
+                for role, domains in last["probe_diagnostics"].items()
+            },
+        }
+    write_json(out / "summary.json", summary)
     print("FULLFIT_RECONSTRUCTION_REPORT:", out / "report.json", flush=True)
+    print("FULLFIT_RECONSTRUCTION_SUMMARY:", out / "summary.json", flush=True)
     print("FORMAL_TRAINING_STARTED: false", flush=True)
 
 
