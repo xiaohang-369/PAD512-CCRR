@@ -33,7 +33,20 @@ def test_trace_union_clips_to_bounded_window_and_does_not_double_count(tmp_path)
         json.dumps(
             {
                 "traceEvents": [
-                    {"name": "R3_PROFILE_WINDOW", "ph": "X", "ts": 100, "dur": 100},
+                    {
+                        "name": "R3_PROFILE_WINDOW",
+                        "cat": "user_annotation",
+                        "ph": "X",
+                        "ts": 100,
+                        "dur": 100,
+                    },
+                    {
+                        "name": "R3_PROFILE_WINDOW",
+                        "cat": "gpu_user_annotation",
+                        "ph": "X",
+                        "ts": 105,
+                        "dur": 40,
+                    },
                     {"cat": "kernel", "ph": "X", "ts": 90, "dur": 30},
                     {"cat": "kernel", "ph": "X", "ts": 110, "dur": 30},
                     {"cat": "gpu_memcpy", "ph": "X", "ts": 130, "dur": 20},
@@ -49,10 +62,37 @@ def test_trace_union_clips_to_bounded_window_and_does_not_double_count(tmp_path)
         )
     )
     r = trace_summary(path)
+    assert r["window_category"] == "user_annotation"
+    assert r["window_marker_count"] == 2
     assert r["kernel_union_seconds"] == 40 / 1e6
     assert r["gpu_active_union_seconds"] == 50 / 1e6
     assert r["window_without_recorded_gpu_activity_seconds"] == 50 / 1e6
     assert r["host_sync_api_union_seconds"] == 20 / 1e6
+
+
+@pytest.mark.parametrize(
+    "categories", [[], ["gpu_user_annotation"], ["user_annotation", "user_annotation"]]
+)
+def test_trace_refuses_missing_or_ambiguous_cpu_window(tmp_path, categories):
+    path = tmp_path / "trace.json"
+    path.write_text(
+        json.dumps(
+            {
+                "traceEvents": [
+                    {
+                        "name": "R3_PROFILE_WINDOW",
+                        "cat": cat,
+                        "ph": "X",
+                        "ts": 100,
+                        "dur": 100,
+                    }
+                    for cat in categories
+                ]
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="CPU user_annotation"):
+        trace_summary(path)
 
 
 def test_comparator_refuses_contaminated_or_different_contracts(tmp_path):

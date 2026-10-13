@@ -582,6 +582,18 @@ def benchmark(work, args, guard):
         )
         print("H100_REPEAT", work.kind, json.dumps(repeats[-1]), flush=True)
     torch.save(reference, work.root / "final-state.pt")
+    # Preserve completed measurements even if trace export/parsing later fails.
+    write(
+        work.root / "timing-results.json",
+        {
+            "initial_state_sha256": initial_hash,
+            "sampling_sha256": sampling_hash,
+            "equivalence_step_hashes": hashes,
+            "repeats": repeats,
+            "profiler_pending": True,
+            "valid_complete_measurement": False,
+        },
+    )
     guard.phase = work.kind + "/profiler"
     profiling = profile(work, args, guard)
     return {

@@ -69,11 +69,19 @@ def interval_union(intervals):
 
 def trace_summary(path):
     events = json.loads(Path(path).read_text())["traceEvents"]
-    windows = [
+    markers = [
         e for e in events if e.get("name") == "R3_PROFILE_WINDOW" and e.get("ph") == "X"
     ]
+    # Kineto can emit both CPU and GPU annotations for one record_function.
+    # The GPU annotation spans device work, not the bounded host workload.
+    windows = [e for e in markers if e.get("cat") == "user_annotation"]
     if len(windows) != 1:
-        raise ValueError("Expected exactly one bounded profiler window")
+        metadata = [
+            {k: e.get(k) for k in ("cat", "pid", "tid", "ts", "dur")} for e in markers
+        ]
+        raise ValueError(
+            f"Expected exactly one CPU user_annotation profiler window; markers={metadata}"
+        )
     lo, hi = windows[0]["ts"], windows[0]["ts"] + windows[0]["dur"]
     kernels, copies, runtime_sync = [], [], []
     for e in events:
@@ -91,6 +99,8 @@ def trace_summary(path):
             runtime_sync.append((a, b))
     active = interval_union(kernels + copies)
     return {
+        "window_category": windows[0]["cat"],
+        "window_marker_count": len(markers),
         "window_seconds": (hi - lo) / 1e6,
         "kernel_union_seconds": interval_union(kernels) / 1e6,
         "copy_or_memset_union_seconds": interval_union(copies) / 1e6,
