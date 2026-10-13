@@ -195,3 +195,19 @@ bash scripts/run_stage_b_reconstruction_probe.sh /absolute/path/candidate-config
 The printed launcher PID is not a completion signal; inspect the log and
 `DIAGNOSTIC_EXIT_CODE`. Local tests validate implementation and experimental
 controls, not clinical performance or convergence on real features.
+
+Once the first pilot's trajectories support the preregistered replication,
+run the two remaining seeds sequentially with the same four arms:
+
+```bash
+bash scripts/run_stage_b_reconstruction_replicates.sh \
+  /absolute/path/candidate-config.yaml /absolute/path/first-run/result/report.json
+```
+
+This checks the first report's configuration, probe and complete production
+source hashes before launch. Each replicate must retain the same cohort and
+checkpoint hashes. Seeds 20261009 and 20261010 are passed explicitly to Python;
+the shell hash seed stays fixed. A failure stops the sequence. Inspect
+`REPLICATION_EXIT_CODE=0` and both `REPLICATE_BINDING_VERIFIED` lines; the launcher
+PID alone does not establish completion. The additional 8000 updates are
+disposable reconstruction experiments, not full Stage B or scientific admission.
