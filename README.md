@@ -211,3 +211,39 @@ the shell hash seed stays fixed. A failure stops the sequence. Inspect
 `REPLICATION_EXIT_CODE=0` and both `REPLICATE_BINDING_VERIFIED` lines; the launcher
 PID alone does not establish completion. The additional 8000 updates are
 disposable reconstruction experiments, not full Stage B or scientific admission.
+
+### Full-fit reconstruction protocol: B-R2-FULLFIT-v1
+
+After the registered three-seed pilot review, the next fixed experiment compares
+`original` and `both_x01` at seed 20261008 for 10000 pure reconstruction updates
+each. It uses every fit image, native AdamW/batch16/RGB-gray weighting and the
+original 10000-step schedule. No clinical, mask or adversarial objectives are
+trained. The production source and original pilot script remain unchanged.
+
+```bash
+bash scripts/run_stage_b_full_fit_reconstruction.sh \
+  /absolute/path/candidate-config.yaml \
+  /absolute/path/first-run/result/report.json \
+  /absolute/path/completed-replicate-directory
+```
+
+`val_tune` is development evaluation only. The old fit holdout is now in the
+training set and must not be described as unseen. Evaluate at steps
+0/100/500/1000/2000/5000/10000; compare the fixed final endpoint, without choosing
+a favorable checkpoint or extending the budget after inspecting results.
+Full image-weighted scores cover all fit/val_tune images. Separate gradient,
+entropy and code-variance diagnostics cover fixed probes of 64 patients per role.
+
+Baselines are standardized zero and per-domain fixed spatial templates fitted
+only on fit with the same per-image coverage weights. Final paired MSE
+differences versus original/zero/template include 2000 patient-cluster bootstrap
+resamples; intervals are developmental, per comparison and not multiplicity
+adjusted. They do not replace clinical/privacy admission or establish optimality.
+
+The script verifies previous reports and immutable weights, writes per-image
+error arrays without patient identifiers, and preserves diagnostic-only weights
+at each evaluation point. These files cannot resume production B. It does not
+implement diagnostic resume; after interruption keep the incomplete output as
+evidence. Nonfinite loss/gradient or binding errors stop the run. A launch PID is
+not success: inspect `FULLFIT_RECONSTRUCTION_REPORT` and `FULLFIT_EXIT_CODE=0`.
+Full-fit scientific results are pending; there is no automatic Stage B promotion.
