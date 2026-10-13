@@ -160,3 +160,38 @@ B 的局部功能检查仅证明硬前向、源 mask 梯度、padding 隔离、�
 `ccrr export`、`ccrr send`、`ccrr receive` 提供冻结部署与收发入口，参数见各子命令 `--help`。发送前必须具备通过相应验收的冻结系统；只分享输出的 `public.png`，C/M 凭证独立交付。接收端不使用原图、连续 latent 或发送端预算。nonce 数据库不得回滚后复用旧密钥，丢失状态须创建新对象与密钥。
 
 请勿提交患者记录、逐图预测/配对日志、数据、权重、密钥、nonce 数据库、checkpoint 或实验结果。研究审查文档和历史验证日志仅在本地保留，不是安装、测试或部署依赖。
+
+
+## Stage B reconstruction investigation (B-R1-DIAG-v1)
+
+`probe_stage_b_reconstruction.py` is a separate diagnostic, not a formal Stage B
+entry point. It leaves `src/ccrr` and all existing A/B weights unchanged. The
+config must reference a completed/failed B run with its original checkpoints.
+The output must be new and outside source, data, A and B output trees.
+
+- Default `--steps 0`: measure A-initial, B-1000, B-10000 and selected reconstruction
+  control, then inspect four matched initialization arms without updating them.
+- Explicit `--steps 1000`: additionally run four disposable reconstruction arms,
+  changing only encoder/decoder terminal weight scales in `{1, 0.1}²`.
+- Fixed fit-only cohort: 64 patients for updates, 16 separate fit patients for
+  diagnostic holdout, one image each. A statistics/teachers already used fit;
+  this is not independent scientific validation. No validation/test role is read.
+- Shared starting weights and batches; original AdamW and first 1000 positions
+  of the 10000-step LR schedule. No production checkpoint, automatic winner,
+  clinical/privacy admission or promotion to formal B.
+- Reports include normalized reconstruction error, code histograms/entropy,
+  tanh derivatives, reconstruction gradients and checkpoint digests. Entropy
+  is not an identity leakage metric. The candidate scales are unvalidated.
+
+On the established H100 host, the launcher fixes the existing environment and
+GPU UUID, stops if occupied, and starts a logged background process:
+
+```bash
+bash scripts/run_stage_b_reconstruction_probe.sh /absolute/path/candidate-config.yaml 0
+# Only after reviewing the read-only diagnostic / registered pilot plan:
+bash scripts/run_stage_b_reconstruction_probe.sh /absolute/path/candidate-config.yaml 1000
+```
+
+The printed launcher PID is not a completion signal; inspect the log and
+`DIAGNOSTIC_EXIT_CODE`. Local tests validate implementation and experimental
+controls, not clinical performance or convergence on real features.
