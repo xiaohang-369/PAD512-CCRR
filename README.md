@@ -247,3 +247,67 @@ implement diagnostic resume; after interruption keep the incomplete output as
 evidence. Nonfinite loss/gradient or binding errors stop the run. A launch PID is
 not success: inspect `FULLFIT_RECONSTRUCTION_REPORT` and `FULLFIT_EXIT_CODE=0`.
 Full-fit scientific results are pending; there is no automatic Stage B promotion.
+
+### Approved short multi-objective diagnostic: B-R3-MULTI-v0.1
+
+B-R3 preserves frozen Stage A/PanDerm and all original losses. It applies
+PUR-INIT-v1.2-rc1 **once** after loading the original A pre-B Purifier state,
+then trains 3000 Purifier updates and 6000 alternating attacker updates.
+Schedules remain the first 3000/6000 updates of the original 10000/20000-step
+plans. A separate 3000-update reconstruction control starts with identical
+Es/Ds parameters and uses the same image batches; no previously trained B-R2
+weight is repurposed as a formal checkpoint. This launcher never calls the
+production B runner or any INN training stage.
+
+```bash
+bash scripts/run_stage_b_short_multi.sh \
+  /absolute/path/candidate-config.yaml \
+  /absolute/path/fullfit-9JSJaLF5/result/report.json
+```
+
+The launcher first runs synthetic recovery tests on the designated H100, then
+launches the diagnostic in a fresh directory. A successful local CPU test or
+server synthetic test is **engineering evidence only**. The fixed endpoint
+uses six 2000-update clinical heads, twelve 5000-update independent identity
+attackers, and 1000 copied-attacker adaptation updates: 85000 heterogeneous
+optimizer updates total, without reducing evaluation budgets. All original
+clinical/privacy/occupancy thresholds remain unchanged. Earlier endpoints are
+observational only, not selected by repeated full audits.
+
+Every completed training transaction/head update is atomically checkpointed,
+including all optimizer states, scheduler counters, RNGs, sampler accounting,
+best readout weights/results, and pending evaluation position. Registered
+Purifier/control snapshots are retained. Source/config/environment/teacher/data
+bindings must match on resume. Scaling is never re-applied to recovered weights.
+Atomic checkpointing adds I/O cost; a hard kill before commit may replay the
+single uncommitted transaction (one Purifier plus two attacker updates, or one
+head/control update). A scoring pass interrupted before its artifact commit may
+be recomputed, but completed optimizer updates are not repeated. Wall execution
+is recorded by a one-second heartbeat, including scoring and bootstrap; hard
+kill accounting can lose at most the final heartbeat interval under normal I/O.
+
+The cumulative execution cap is four hours across resumes. SIGINT/SIGTERM request
+a checkpoint-boundary pause; `R3_EXIT_CODE=75` means paused, **not success**. Work
+already in a non-updating evaluation block may finish before the pause is honored.
+The signal must target the Python PID in `result/worker.pid`, not the shell
+launcher PID. Restarting does not replenish the time allowance. Extending an exhausted budget
+requires separate authorization; do not delete or edit the budget record.
+
+The launcher prints the exact resume command. It uses the same two inputs plus
+the **existing run directory** as its third argument, not a new directory:
+
+```bash
+bash scripts/run_stage_b_short_multi.sh \
+  /absolute/path/candidate-config.yaml \
+  /absolute/path/fullfit-9JSJaLF5/result/report.json \
+  /absolute/path/r3-multi-XXXXXXXX
+```
+
+`R3_EXIT_CODE=0` confirms protocol execution completed. Inspect `result/summary.json`,
+`result/report.json`, `result/feature_audit/fixed-3000/`, and `result/status.json`.
+Summary includes verified head update counts, quantization trajectories, original
+threshold results and adapted-attack conflicts. `stage_b_passed` and
+`scientific_admission_complete` stay **false**, even if this short endpoint meets
+the listed developmental thresholds. Mask permutations preserve occupancy but
+are not retrained ablations or proof of clinical/identity localization. No formal
+B promotion, INN launch, new scaling search, or automatic budget extension occurs.
