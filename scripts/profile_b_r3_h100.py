@@ -626,6 +626,9 @@ def main():
         "--out", type=Path, required=True, help="New private benchmark directory"
     )
     p.add_argument("--compare-to", type=Path)
+    p.add_argument(
+        "--suite", choices=("baseline", "scaling", "all"), default="baseline"
+    )
     p.add_argument("--steps", type=int, default=100)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--repeats", type=int, default=3)
@@ -633,6 +636,10 @@ def main():
     p.add_argument("--equivalence-steps", type=int, default=3)
     p.add_argument("--max-seconds", type=int, default=1800)
     args = p.parse_args()
+    check(
+        not args.compare_to or args.suite == "baseline",
+        "Engine comparison uses baseline suite only",
+    )
     check(
         1 <= args.steps <= 200 and 1 <= args.warmup <= 20 and 2 <= args.repeats <= 5,
         "Use bounded benchmark counts",
@@ -731,6 +738,7 @@ def main():
     guard = Guard(args.out, args.max_seconds)
     report = {
         "valid_measurement": False,
+        "suite": args.suite,
         "scientific_admission_complete": False,
         "full_training_started": False,
         "workloads": {},
@@ -802,6 +810,9 @@ def main():
                     "b_r3_perf_common.py": sha(
                         Path(__file__).with_name("b_r3_perf_common.py")
                     ),
+                    "b_r3_h100_scaling.py": sha(
+                        Path(__file__).with_name("b_r3_h100_scaling.py")
+                    ),
                 },
                 "protected_sha256": protected,
                 "seed": e.seed,
@@ -842,7 +853,11 @@ def main():
                     "identity-p2-pooled",
                 ],
             }
-            for kind in report["comparison_contract"]["workloads"]:
+            for kind in (
+                report["comparison_contract"]["workloads"]
+                if args.suite != "scaling"
+                else []
+            ):
                 guard.check()
                 state.Timings.path = None
                 state.Timings.values = {}
@@ -861,6 +876,17 @@ def main():
                 write(args.out / "report.json", report)
                 print("H100_CASE_COMPLETE", kind, flush=True)
                 del work
+            if args.suite in ("scaling", "all"):
+                # Import our probe helper, not anything from the archived engine.
+                import importlib.util
+
+                scaling_spec = importlib.util.spec_from_file_location(
+                    "r3_capacity_probe",
+                    Path(__file__).with_name("b_r3_h100_scaling.py"),
+                )
+                scaling_module = importlib.util.module_from_spec(scaling_spec)
+                scaling_spec.loader.exec_module(scaling_module)
+                report["scaling"] = scaling_module.run_scaling(audit, args, guard)
             guard.check()
             for path, expected in protected.items():
                 check(
@@ -952,6 +978,7 @@ def main():
                         for name, row in report["workloads"].items()
                     },
                     "gpu_samples_by_phase": report["gpu_samples_by_phase"],
+                    "scaling": report.get("scaling", {}).get("brief"),
                     "no_optimization_speedup_claimed": args.compare_to is None,
                     "scientific_admission_complete": False,
                 },

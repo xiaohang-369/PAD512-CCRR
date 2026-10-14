@@ -2,7 +2,7 @@
 # Launch bounded profiling only. No environment changes or full-training dispatch.
 set -euo pipefail
 SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT]}
+CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all]}
 OLD=${2:?Missing completed run}
 ENGINE=${3:?Missing archived execution engine}
 PY=/home/zwc/anaconda3/envs/ccrr_pad512/bin/python
@@ -30,9 +30,15 @@ export PYTHONPATH="$ENGINE/src"
 export PYTHONDONTWRITEBYTECODE=1
 ARGS=()
 if [[ $# -eq 4 ]]; then
-    [[ "$4" == /* ]]
-    test -f "$4"
-    ARGS+=(--compare-to "$4")
+    case "$4" in
+        --scaling) ARGS+=(--suite scaling) ;;
+        --all) ARGS+=(--suite all) ;;
+        *)
+            [[ "$4" == /* ]]
+            test -f "$4"
+            ARGS+=(--compare-to "$4")
+            ;;
+    esac
 fi
 nohup bash -c '
     "$@"
@@ -46,4 +52,5 @@ nohup bash -c '
 printf '%s\n' "$!" > "$WORK/launcher.pid"
 printf 'H100_PROFILE_WORK=%s\nH100_PROFILE_LAUNCHER_PID=%s\n' "$WORK" "$!"
 printf 'Watch: tail -n 60 -F %q\n' "$WORK/console.log"
+printf 'Background probe submitted, NOT completed. Follow Watch above; final status is H100_PROFILE_EXIT_CODE.\n'
 printf 'This is a bounded real-data performance probe; no full Stage B or R3 restart.\n'

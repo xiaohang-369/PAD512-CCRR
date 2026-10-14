@@ -122,6 +122,10 @@ def compare_reports(baseline, candidate):
         raise ValueError(
             "Incomplete or GPU-contaminated measurement; comparison refused"
         )
+    if not a["workloads"] or a["workloads"].keys() != b["workloads"].keys():
+        raise ValueError(
+            "Missing or different baseline workload sets; comparison refused"
+        )
     results = {}
     for name, old in a["workloads"].items():
         new = b["workloads"][name]
@@ -158,3 +162,13 @@ def compare_reports(baseline, candidate):
         "scientific_admission_complete": False,
         "full_training_authorized_by_this_report": False,
     }
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Read an existing trace; no GPU work or file changes"
+    )
+    parser.add_argument("trace", type=Path)
+    print(json.dumps(trace_summary(parser.parse_args().trace), indent=2))

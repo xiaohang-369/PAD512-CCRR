@@ -120,6 +120,17 @@ def test_exact_digest_covers_gradients_optimizer_and_rng():
     assert not exact(a, b) and digest(a) != digest(b)
 
 
+def test_comparator_rejects_empty_scaling_only_reports(tmp_path):
+    path = tmp_path / "report.json"
+    path.write_text(
+        json.dumps(
+            {"comparison_contract": {}, "valid_measurement": True, "workloads": {}}
+        )
+    )
+    with pytest.raises(ValueError, match="workload sets"):
+        compare_reports(path, path)
+
+
 @pytest.mark.parametrize("kind", ["purifier", "control"])
 def test_real_update_probe_resets_without_mutating_source_snapshot(tmp_path, kind):
     e = context(tmp_path / "resources", micro=16)
