@@ -7,7 +7,7 @@ if [[ ${1:-} == --gpu ]]; then
     GPU_SELECTOR=${2:?Missing GPU index or UUID}
     shift 2
 fi
-CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all|--ab|--capacity]}
+CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all|--ab|--capacity|--full-capacity]}
 OLD=${2:?Missing completed run}
 ENGINE=${3:?Missing archived execution engine}
 PY=/home/zwc/anaconda3/envs/ccrr_pad512/bin/python
@@ -39,12 +39,14 @@ ARGS=()
 STEPS=100
 WARMUP=5
 REPEATS=3
+MAX_SECONDS=1800
 if [[ $# -eq 4 ]]; then
     case "$4" in
         --scaling) ARGS+=(--suite scaling) ;;
         --all) ARGS+=(--suite all) ;;
         --ab) ARGS+=(--suite ab) ;;
         --capacity) ARGS+=(--suite capacity); STEPS=20; WARMUP=3; REPEATS=2 ;;
+        --full-capacity) ARGS+=(--suite full-capacity); STEPS=5; WARMUP=2; REPEATS=2; MAX_SECONDS=3600 ;;
         *)
             [[ "$4" == /* ]]
             test -f "$4"
@@ -61,9 +63,13 @@ nohup bash -c '
     --gpu-uuid "$GPU" \
     --engine-source "$ENGINE" --config "$CONFIG" --run "$OLD" --out "$WORK/result" \
     --steps "$STEPS" --warmup "$WARMUP" --repeats "$REPEATS" --profile-steps 3 --equivalence-steps 3 \
-    --max-seconds 1800 "${ARGS[@]}" > "$WORK/console.log" 2>&1 < /dev/null &
+    --max-seconds "$MAX_SECONDS" "${ARGS[@]}" > "$WORK/console.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$WORK/launcher.pid"
 printf 'H100_PROFILE_WORK=%s\nH100_PROFILE_LAUNCHER_PID=%s\n' "$WORK" "$!"
 printf 'Watch: tail -n 60 -F %q\n' "$WORK/console.log"
 printf 'Background probe submitted, NOT completed. Follow Watch above; final status is H100_PROFILE_EXIT_CODE.\n'
 printf 'This is a bounded real-data performance probe; no full Stage B or R3 restart.\n'
+if [[ ${4:-} == --full-capacity ]]; then
+    printf 'Table after completion: cat %q\n' "$WORK/result/full-capacity/comparison.csv"
+    printf 'Detailed losses, budgets and validation metrics: %s\n' "$WORK/result/full-capacity/summary.json"
+fi

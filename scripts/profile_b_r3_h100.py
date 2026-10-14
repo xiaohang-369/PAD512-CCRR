@@ -647,7 +647,7 @@ def main():
     p.add_argument("--compare-to", type=Path)
     p.add_argument(
         "--suite",
-        choices=("baseline", "scaling", "all", "ab", "capacity"),
+        choices=("baseline", "scaling", "all", "ab", "capacity", "full-capacity"),
         default="baseline",
     )
     p.add_argument("--steps", type=int, default=100)
@@ -847,6 +847,9 @@ def main():
                         Path(__file__).with_name("b_r3_cached_execution.py")
                     ),
                     "b_r3_h100_ab.py": sha(Path(__file__).with_name("b_r3_h100_ab.py")),
+                    "b_r3_full_capacity.py": sha(
+                        Path(__file__).with_name("b_r3_full_capacity.py")
+                    ),
                 },
                 "protected_sha256": protected,
                 "seed": e.seed,
@@ -929,6 +932,18 @@ def main():
                 from b_r3_h100_scaling import run_capacity
 
                 report["capacity"] = run_capacity(audit, args, guard)
+            if args.suite == "full-capacity":
+                from b_r3_full_capacity import run_full_capacity
+
+                report["full_capacity"] = run_full_capacity(
+                    e,
+                    banks,
+                    audit,
+                    engine,
+                    old / "snapshots/purifier-2000.pt",
+                    args,
+                    guard,
+                )
             guard.check()
             for path, expected in protected.items():
                 check(
@@ -1023,6 +1038,7 @@ def main():
                     "scaling": report.get("scaling", {}).get("brief"),
                     "ab": report.get("ab", {}).get("brief"),
                     "capacity": report.get("capacity", {}).get("brief"),
+                    "full_capacity": report.get("full_capacity", {}).get("brief"),
                     "no_optimization_speedup_claimed": args.compare_to is None
                     and not (
                         report["valid_measurement"]
