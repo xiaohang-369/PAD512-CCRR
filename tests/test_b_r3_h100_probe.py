@@ -158,6 +158,19 @@ def test_real_update_probe_resets_without_mutating_source_snapshot(tmp_path, kin
     source = tmp_path / "source.pt"
     st.save(source)
     original = source.read_bytes()
+    frozen = digest({name: getattr(e, name).state_dict() for name in ("mfm", "reid")})
+    if kind == "control":
+        previous = Workload(
+            e,
+            banks,
+            None,
+            {"state": state, "runner": runner},
+            tmp_path / "preceding-purifier",
+            "purifier",
+            source,
+        )
+        previous.update()
+        assert not any(p.requires_grad for p in e.sem_attacker.parameters())
     work = Workload(
         e,
         banks,
@@ -181,6 +194,12 @@ def test_real_update_probe_resets_without_mutating_source_snapshot(tmp_path, kin
     work.reset(tmp_path / "restorable.pt")
     assert exact(before, work.capture(gradients=False))
     assert source.read_bytes() == original
+    assert frozen == digest(
+        {name: getattr(e, name).state_dict() for name in ("mfm", "reid")}
+    )
+    assert not any(
+        p.requires_grad for module in (e.mfm, e.reid) for p in module.parameters()
+    )
 
 
 @pytest.mark.parametrize("family", ["spatial", "pooled"])

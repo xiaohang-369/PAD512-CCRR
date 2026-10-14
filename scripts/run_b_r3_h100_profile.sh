@@ -7,7 +7,7 @@ if [[ ${1:-} == --gpu ]]; then
     GPU_SELECTOR=${2:?Missing GPU index or UUID}
     shift 2
 fi
-CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all]}
+CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all|--ab]}
 OLD=${2:?Missing completed run}
 ENGINE=${3:?Missing archived execution engine}
 PY=/home/zwc/anaconda3/envs/ccrr_pad512/bin/python
@@ -40,6 +40,7 @@ if [[ $# -eq 4 ]]; then
     case "$4" in
         --scaling) ARGS+=(--suite scaling) ;;
         --all) ARGS+=(--suite all) ;;
+        --ab) ARGS+=(--suite ab) ;;
         *)
             [[ "$4" == /* ]]
             test -f "$4"

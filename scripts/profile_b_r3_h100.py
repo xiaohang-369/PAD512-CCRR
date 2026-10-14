@@ -160,6 +160,14 @@ def sampling_trace(e, banks, audit):
                     wrap(audit.feature_batch, "audit_indices_domains"),
                 )
             )
+            if hasattr(audit, "pooled_batch"):
+                stack.enter_context(
+                    patch.object(
+                        audit,
+                        "pooled_batch",
+                        wrap(audit.pooled_batch, "audit_indices_domains"),
+                    )
+                )
         yield events
 
 
@@ -268,6 +276,11 @@ class Workload:
         if kind in ("purifier", "control"):
             from ccrr.runtime.checkpoints import load_checkpoint
 
+            # The preceding Purifier transaction freezes this alternating head
+            # during the generator update. requires_grad is not in state_dict;
+            # restore its optimizer membership before constructing the next case.
+            # Frozen Stage A/PanDerm teachers are separate and remain untouched.
+            e.sem_attacker.requires_grad_(True)
             self.state = engine["runner"].make_state(e, self.bound, False)
             raw = load_checkpoint(
                 start_snapshot, self.state.modules, self.state.opts["purifier"]
@@ -633,7 +646,7 @@ def main():
     )
     p.add_argument("--compare-to", type=Path)
     p.add_argument(
-        "--suite", choices=("baseline", "scaling", "all"), default="baseline"
+        "--suite", choices=("baseline", "scaling", "all", "ab"), default="baseline"
     )
     p.add_argument("--steps", type=int, default=100)
     p.add_argument("--warmup", type=int, default=5)
@@ -828,6 +841,10 @@ def main():
                     "b_r3_h100_scaling.py": sha(
                         Path(__file__).with_name("b_r3_h100_scaling.py")
                     ),
+                    "b_r3_cached_execution.py": sha(
+                        Path(__file__).with_name("b_r3_cached_execution.py")
+                    ),
+                    "b_r3_h100_ab.py": sha(Path(__file__).with_name("b_r3_h100_ab.py")),
                 },
                 "protected_sha256": protected,
                 "seed": e.seed,
@@ -870,7 +887,7 @@ def main():
             }
             for kind in (
                 report["comparison_contract"]["workloads"]
-                if args.suite != "scaling"
+                if args.suite in ("baseline", "all")
                 else []
             ):
                 guard.check()
@@ -902,6 +919,10 @@ def main():
                 scaling_module = importlib.util.module_from_spec(scaling_spec)
                 scaling_spec.loader.exec_module(scaling_module)
                 report["scaling"] = scaling_module.run_scaling(audit, args, guard)
+            if args.suite == "ab":
+                from b_r3_h100_ab import run_ab
+
+                report["ab"] = run_ab(audit, args, guard)
             guard.check()
             for path, expected in protected.items():
                 check(
@@ -994,7 +1015,13 @@ def main():
                     },
                     "gpu_samples_by_phase": report["gpu_samples_by_phase"],
                     "scaling": report.get("scaling", {}).get("brief"),
-                    "no_optimization_speedup_claimed": args.compare_to is None,
+                    "ab": report.get("ab", {}).get("brief"),
+                    "no_optimization_speedup_claimed": args.compare_to is None
+                    and not (
+                        report["valid_measurement"]
+                        and report.get("ab", {}).get("all_exact", False)
+                        and report.get("ab", {}).get("cycle_speedup", 0) > 1
+                    ),
                     "scientific_admission_complete": False,
                 },
             )
