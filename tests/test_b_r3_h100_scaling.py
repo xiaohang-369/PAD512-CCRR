@@ -45,7 +45,7 @@ def test_batch16_matches_engine_and_larger_batches_are_actual_forward_sizes(
     for _ in range(2):
         h.batch_update(16)
     assert exact(expected, h.capture(gradients=True))
-    for size in (32, 64, 128):
+    for size in (32, 64, 128, 256):
         h.restore()
         sizes = []
         hook = h.model.register_forward_pre_hook(

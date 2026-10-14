@@ -646,7 +646,9 @@ def main():
     )
     p.add_argument("--compare-to", type=Path)
     p.add_argument(
-        "--suite", choices=("baseline", "scaling", "all", "ab"), default="baseline"
+        "--suite",
+        choices=("baseline", "scaling", "all", "ab", "capacity"),
+        default="baseline",
     )
     p.add_argument("--steps", type=int, default=100)
     p.add_argument("--warmup", type=int, default=5)
@@ -923,6 +925,10 @@ def main():
                 from b_r3_h100_ab import run_ab
 
                 report["ab"] = run_ab(audit, args, guard)
+            if args.suite == "capacity":
+                from b_r3_h100_scaling import run_capacity
+
+                report["capacity"] = run_capacity(audit, args, guard)
             guard.check()
             for path, expected in protected.items():
                 check(
@@ -1016,6 +1022,7 @@ def main():
                     "gpu_samples_by_phase": report["gpu_samples_by_phase"],
                     "scaling": report.get("scaling", {}).get("brief"),
                     "ab": report.get("ab", {}).get("brief"),
+                    "capacity": report.get("capacity", {}).get("brief"),
                     "no_optimization_speedup_claimed": args.compare_to is None
                     and not (
                         report["valid_measurement"]

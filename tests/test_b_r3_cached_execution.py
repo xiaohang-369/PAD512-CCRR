@@ -133,3 +133,45 @@ def test_ab_runs_both_variants_and_recovery_but_rejects_cpu_only_trace(
             r["final_exact"] and r["restore_and_continuation_exact"]
             for r in variant["repeats"]
         )
+
+
+def test_large_batch_scan_records_loss_and_recovers_from_capacity_limit(
+    audit, tmp_path, monkeypatch
+):
+    # CPU orchestration fixture with an injected capacity failure, not GPU evidence.
+    import time
+    import profile_b_r3_h100 as probe
+    from b_r3_h100_scaling import run_capacity
+
+    def cpu_timing(fn):
+        start = time.perf_counter()
+        result = fn()
+        return result, {"wall_seconds": time.perf_counter() - start}
+
+    monkeypatch.setattr(probe, "timed", cpu_timing)
+    for name in (
+        "synchronize",
+        "reset_peak_memory_stats",
+        "max_memory_allocated",
+        "max_memory_reserved",
+        "empty_cache",
+    ):
+        monkeypatch.setattr(torch.cuda, name, lambda: 0)
+    original = Head.batch_update
+
+    def limited(self, batch):
+        if self.family == "spatial" and batch == 64:
+            raise torch.cuda.OutOfMemoryError("Injected test capacity")
+        return original(self, batch)
+
+    monkeypatch.setattr(Head, "batch_update", limited)
+    args = SimpleNamespace(out=tmp_path, steps=2, warmup=1, repeats=2)
+    report = run_capacity(
+        audit, args, SimpleNamespace(check=lambda: None), batches=(16, 64)
+    )
+    assert report["complete"] and not report["formal_training_started"]
+    assert report["families"]["spatial"]["stop_reason"] == "out_of_memory"
+    assert report["families"]["spatial"]["throughput_candidate_batch"] == 16
+    assert report["families"]["pooled"]["cases"][-1]["status"] == "complete"
+    row = report["families"]["pooled"]["cases"][-1]["repeats"][0]
+    assert row["pair_exposures"] == 128 and row["loss_max"] >= row["loss_min"] >= 0

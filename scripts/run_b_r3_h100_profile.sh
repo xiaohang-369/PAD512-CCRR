@@ -7,7 +7,7 @@ if [[ ${1:-} == --gpu ]]; then
     GPU_SELECTOR=${2:?Missing GPU index or UUID}
     shift 2
 fi
-CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all|--ab]}
+CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all|--ab|--capacity]}
 OLD=${2:?Missing completed run}
 ENGINE=${3:?Missing archived execution engine}
 PY=/home/zwc/anaconda3/envs/ccrr_pad512/bin/python
@@ -36,11 +36,15 @@ export PYTHONPATH="$ENGINE/src"
 # Prevent Python from creating __pycache__ in either archived source tree.
 export PYTHONDONTWRITEBYTECODE=1
 ARGS=()
+STEPS=100
+WARMUP=5
+REPEATS=3
 if [[ $# -eq 4 ]]; then
     case "$4" in
         --scaling) ARGS+=(--suite scaling) ;;
         --all) ARGS+=(--suite all) ;;
         --ab) ARGS+=(--suite ab) ;;
+        --capacity) ARGS+=(--suite capacity); STEPS=20; WARMUP=3; REPEATS=2 ;;
         *)
             [[ "$4" == /* ]]
             test -f "$4"
@@ -56,7 +60,7 @@ nohup bash -c '
 ' bash "$PY" -B -u "$SOURCE/scripts/profile_b_r3_h100.py" \
     --gpu-uuid "$GPU" \
     --engine-source "$ENGINE" --config "$CONFIG" --run "$OLD" --out "$WORK/result" \
-    --steps 100 --warmup 5 --repeats 3 --profile-steps 3 --equivalence-steps 3 \
+    --steps "$STEPS" --warmup "$WARMUP" --repeats "$REPEATS" --profile-steps 3 --equivalence-steps 3 \
     --max-seconds 1800 "${ARGS[@]}" > "$WORK/console.log" 2>&1 < /dev/null &
 printf '%s\n' "$!" > "$WORK/launcher.pid"
 printf 'H100_PROFILE_WORK=%s\nH100_PROFILE_LAUNCHER_PID=%s\n' "$WORK" "$!"

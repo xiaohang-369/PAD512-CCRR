@@ -99,7 +99,10 @@ class Head:
         from ccrr.data.pad import rng_for
         from ccrr.training.optimization import schedule, update
 
-        require(batch in (16, 32, 64, 128), "Unsupported capacity batch")
+        require(
+            batch in (16, 32, 64, 128, 256, 512, 1024, 2048, 4096),
+            "Unsupported capacity batch",
+        )
         self.model.train()
         self.opt.zero_grad()
         rng = rng_for(
@@ -121,15 +124,17 @@ class Head:
             "fit", [p[1] for p in pairs], self.rep, [d[1] for d in domains]
         )
         logit = self.model(fa, va, fb, vb)
-        (
+        loss = (
             F.binary_cross_entropy_with_logits(
                 logit, logit.new_tensor([p[2] for p in pairs]), reduction="sum"
             )
             / batch
-        ).backward()
+        )
+        loss.backward()
         schedule(self.opt, self.next, 5000)
         update(self.opt)
         self.next += 1
+        return loss.detach()
 
     def score(self):
         from sklearn.metrics import roc_auc_score
@@ -292,6 +297,152 @@ def memory():
         "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
         "peak_reserved_bytes": torch.cuda.max_memory_reserved(),
     }
+
+
+def run_capacity(
+    audit, args, guard, *, batches=(16, 64, 128, 256, 512, 1024, 2048, 4096)
+):
+    """Short large-batch scan, no equivalence pass or full-training dispatch."""
+    from b_r3_cached_execution import CachedPairSampler
+    from profile_b_r3_h100 import timed
+
+    root = args.out / "capacity"
+    root.mkdir()
+    source = copy.copy(audit)
+    source.e = copy.copy(audit.e)
+    source.e.sampler = CachedPairSampler(audit.e.sampler)
+    report = {
+        "complete": False,
+        "formal_training_started": False,
+        "scope": "Single p1/sem spatial and pooled attackers; batch sizes cannot be transferred to Purifier without testing.",
+        "execution": "Cached metadata sampler, resident original features, original FP32 optimizer and loss normalized by actual batch; one full-batch forward per update.",
+        "limits": "Larger batches change training and sample budget. Short losses check numerical health, not convergence or scientific admission. Memory includes shared frozen caches; reserved memory may persist between cases.",
+        "batches": list(batches),
+        "families": {},
+    }
+
+    def persist():
+        write(root / "summary.json", report)
+
+    persist()
+    for family in ("spatial", "pooled"):
+        head = Head(source, ("p1", "sem", family))
+        rows = report["families"][family] = {"cases": [], "stop_reason": "batch_cap"}
+        plateau = 0
+        best = 0.0
+        for batch in batches:
+            case = {"batch": batch, "repeats": [], "status": "running"}
+            rows["cases"].append(case)
+            persist()
+            print(f"H100_CAPACITY_START {family} batch={batch}", flush=True)
+            oom = False
+            try:
+                for rep in range(args.repeats):
+                    guard.phase = f"capacity/{family}/{batch}/warmup/{rep}"
+                    head.restore()
+                    for _ in range(args.warmup):
+                        guard.check()
+                        head.batch_update(batch)
+                    torch.cuda.synchronize()
+                    torch.cuda.reset_peak_memory_stats()
+                    guard.phase = f"capacity/{family}/{batch}/updates/{rep}"
+
+                    def loop(head=head, batch=batch):
+                        losses = []
+                        for _ in range(args.steps):
+                            guard.check()
+                            losses.append(head.batch_update(batch))
+                        return torch.stack(losses)
+
+                    losses, timing = timed(loop)
+                    require(
+                        bool(torch.isfinite(losses).all()), "Nonfinite capacity loss"
+                    )
+                    values = losses.cpu().tolist()
+                    row = {
+                        "repeat": rep,
+                        "steps": args.steps,
+                        "pair_exposures": batch * args.steps,
+                        "seconds_per_step": timing["wall_seconds"] / args.steps,
+                        "pairs_per_second": batch * args.steps / timing["wall_seconds"],
+                        "loss_first": values[0],
+                        "loss_last": values[-1],
+                        "loss_min": min(values),
+                        "loss_max": max(values),
+                        **timing,
+                        **memory(),
+                    }
+                    case["repeats"].append(row)
+                    print(
+                        "H100_CAPACITY_REPEAT",
+                        family,
+                        batch,
+                        json.dumps(row),
+                        flush=True,
+                    )
+                    persist()
+            except torch.cuda.OutOfMemoryError:
+                # Stop this family's growth; never terminate another process.
+                case["status"] = "out_of_memory"
+                rows["stop_reason"] = "out_of_memory"
+                oom = True
+            if oom:
+                head.restore()
+                torch.cuda.empty_cache()
+                persist()
+                break
+            case["status"] = "complete"
+            case["median_pairs_per_second"] = statistics.median(
+                r["pairs_per_second"] for r in case["repeats"]
+            )
+            case["median_seconds_per_step"] = statistics.median(
+                r["seconds_per_step"] for r in case["repeats"]
+            )
+            speed = case["median_pairs_per_second"]
+            plateau = plateau + 1 if best and speed < best * 1.05 else 0
+            best = max(best, speed)
+            persist()
+            if plateau >= 2:
+                rows["stop_reason"] = "two_sizes_without_5_percent_gain"
+                break
+        complete = [r for r in rows["cases"] if r["status"] == "complete"]
+        require(bool(complete), "No usable batch measured")
+        peak = max(r["median_pairs_per_second"] for r in complete)
+        # Smallest measured batch within 5% of observed peak, not a training approval.
+        rows["throughput_candidate_batch"] = min(
+            r["batch"] for r in complete if r["median_pairs_per_second"] >= peak * 0.95
+        )
+        rows["peak_pairs_per_second"] = peak
+        print(
+            "H100_CAPACITY_CHOICE",
+            family,
+            rows["throughput_candidate_batch"],
+            rows["stop_reason"],
+            flush=True,
+        )
+        del head
+        torch.cuda.empty_cache()
+        persist()
+    report["complete"] = True
+    report["brief"] = {k: v for k, v in report.items() if k != "families"}
+    report["brief"]["families"] = {
+        name: {
+            **{k: v for k, v in family.items() if k != "cases"},
+            "cases": [
+                {
+                    **{k: v for k, v in case.items() if k != "repeats"},
+                    "peak_allocated_GiB": max(
+                        (r["peak_allocated_bytes"] for r in case["repeats"]), default=0
+                    )
+                    / 1024**3,
+                }
+                for case in family["cases"]
+            ],
+        }
+        for name, family in report["families"].items()
+    }
+    persist()
+    return report
 
 
 def run_scaling(audit, args, guard):
