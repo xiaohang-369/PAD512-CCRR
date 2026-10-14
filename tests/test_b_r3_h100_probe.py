@@ -26,6 +26,22 @@ from test_stage_b_execution import context
 from test_b_r3_gpu import score_context
 
 
+def test_occupancy_query_follows_explicit_gpu_uuid(monkeypatch):
+    import profile_b_r3_h100 as probe
+
+    selected = "GPU-c000334b-9ccf-149d-1d3c-fe45fb4a5ccd"
+    monkeypatch.setattr(probe, "GPU", selected)
+    calls = []
+
+    def query(command, **kwargs):
+        calls.append(command)
+        return "2195127\n"
+
+    monkeypatch.setattr(probe.subprocess, "check_output", query)
+    assert probe.gpu_pids() == {2195127}
+    assert calls[0][calls[0].index("-i") + 1] == selected
+
+
 def test_trace_union_clips_to_bounded_window_and_does_not_double_count(tmp_path):
     assert interval_union([(0, 10), (5, 20), (30, 35)]) == 25
     path = tmp_path / "trace.json"

@@ -615,8 +615,14 @@ def benchmark(work, args, guard):
 
 
 def main():
+    global GPU
     process_start = time.perf_counter()
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument(
+        "--gpu-uuid",
+        default=GPU,
+        help="Explicit authorized GPU UUID; must match CUDA_VISIBLE_DEVICES",
+    )
     p.add_argument("--engine-source", type=Path, required=True)
     p.add_argument(
         "--run", type=Path, required=True, help="Completed v0.2 R3 run, read only"
@@ -636,6 +642,15 @@ def main():
     p.add_argument("--equivalence-steps", type=int, default=3)
     p.add_argument("--max-seconds", type=int, default=1800)
     args = p.parse_args()
+    import re
+
+    check(
+        re.fullmatch(
+            r"GPU-[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", args.gpu_uuid
+        ),
+        "Expected one full GPU UUID",
+    )
+    GPU = args.gpu_uuid
     check(
         not args.compare_to or args.suite == "baseline",
         "Engine comparison uses baseline suite only",

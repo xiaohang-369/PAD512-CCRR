@@ -2,11 +2,18 @@
 # Launch bounded profiling only. No environment changes or full-training dispatch.
 set -euo pipefail
 SOURCE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all]}
+GPU_SELECTOR=GPU-76f0daac-5625-a97a-38ec-efdb3ed44d54
+if [[ ${1:-} == --gpu ]]; then
+    GPU_SELECTOR=${2:?Missing GPU index or UUID}
+    shift 2
+fi
+CONFIG=${1:?Usage: bash run_b_r3_h100_profile.sh [--gpu INDEX_OR_UUID] ABS_CONFIG ABS_COMPLETED_RUN ABS_ENGINE_SOURCE [ABS_BASELINE_REPORT|--scaling|--all]}
 OLD=${2:?Missing completed run}
 ENGINE=${3:?Missing archived execution engine}
 PY=/home/zwc/anaconda3/envs/ccrr_pad512/bin/python
-GPU=GPU-76f0daac-5625-a97a-38ec-efdb3ed44d54
+GPU=$(nvidia-smi -i "$GPU_SELECTOR" --query-gpu=uuid --format=csv,noheader,nounits)
+[[ "$GPU" =~ ^GPU-[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]] || { printf 'Expected exactly one GPU UUID; no probe started.\n' >&2; exit 1; }
+printf 'Selected GPU: %s -> %s\n' "$GPU_SELECTOR" "$GPU"
 ROOT=/data/zwc/zyh/ccrr-checks/stage-b/reconstruction-diagnostics
 [[ $# -eq 3 || $# -eq 4 ]]
 [[ "$CONFIG" == /* && "$OLD" == /* && "$ENGINE" == /* ]]
@@ -46,6 +53,7 @@ nohup bash -c '
     printf "\nH100_PROFILE_EXIT_CODE=%s\n" "$rc"
     exit "$rc"
 ' bash "$PY" -B -u "$SOURCE/scripts/profile_b_r3_h100.py" \
+    --gpu-uuid "$GPU" \
     --engine-source "$ENGINE" --config "$CONFIG" --run "$OLD" --out "$WORK/result" \
     --steps 100 --warmup 5 --repeats 3 --profile-steps 3 --equivalence-steps 3 \
     --max-seconds 1800 "${ARGS[@]}" > "$WORK/console.log" 2>&1 < /dev/null &
