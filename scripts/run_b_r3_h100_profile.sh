@@ -47,6 +47,7 @@ if [[ $# -eq 4 ]]; then
         --ab) ARGS+=(--suite ab) ;;
         --capacity) ARGS+=(--suite capacity); STEPS=20; WARMUP=3; REPEATS=2 ;;
         --full-capacity) ARGS+=(--suite full-capacity); STEPS=5; WARMUP=2; REPEATS=2; MAX_SECONDS=3600 ;;
+        --purifier16) ARGS+=(--suite purifier16); STEPS=20; WARMUP=3; REPEATS=3; MAX_SECONDS=1800 ;;
         *)
             [[ "$4" == /* ]]
             test -f "$4"
@@ -72,4 +73,10 @@ printf 'This is a bounded real-data performance probe; no full Stage B or R3 res
 if [[ ${4:-} == --full-capacity ]]; then
     printf 'Table after completion: cat %q\n' "$WORK/result/full-capacity/comparison.csv"
     printf 'Detailed losses, budgets and validation metrics: %s\n' "$WORK/result/full-capacity/summary.json"
+fi
+if [[ ${4:-} == --purifier16 ]]; then
+    printf 'Fixed effective image/pair batch=16; microbatch=1/2/4/8/16 only.\n'
+    printf 'Results: cat %q\n' "$WORK/result/purifier16/comparison.csv"
+    printf 'Baseline segments: %s\n' "$WORK/result/purifier16/micro-16/profile.json"
+    printf 'Baseline CPU/CUDA operators: %s\n' "$WORK/result/purifier16/micro-16/profiler-table.txt"
 fi

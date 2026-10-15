@@ -199,6 +199,17 @@ def instrumentation(work):
         return call
 
     with ExitStack() as stack:
+        if work.kind == "purifier":
+            import b_r3_diagnostics as diagnostics
+
+            for name in ("image_backward", "pair_backward"):
+                stack.enter_context(
+                    patch.object(
+                        diagnostics,
+                        name,
+                        wrap(getattr(diagnostics, name), "phase." + name),
+                    )
+                )
         for name, model in work.modules.items():
             stack.enter_context(
                 patch.object(
@@ -468,6 +479,11 @@ def profile(work, args, guard):
             sort_by="self_cuda_time_total", row_limit=50
         )
     )
+    (work.root / "profiler-cpu-table.txt").write_text(
+        prof.key_averages(group_by_input_shape=True).table(
+            sort_by="self_cpu_time_total", row_limit=50
+        )
+    )
     phases = {}
     for label, host, begin, end, shapes in events:
         row = phases.setdefault(
@@ -527,7 +543,7 @@ def benchmark(work, args, guard):
     repeats = []
     reference = None
     for rep in range(args.repeats):
-        guard.phase = work.kind + f"/throughput/{rep}"
+        guard.phase = work.kind + f"/warmup/{rep}"
         work.reset()
         for _ in range(args.warmup):
             guard.check()
@@ -549,7 +565,11 @@ def benchmark(work, args, guard):
                 work.state.save()
                 work.budget.record()
 
+        guard.phase = work.kind + f"/throughput/{rep}"
         _, updates = timed(loop)
+        measured_peak_allocated = torch.cuda.max_memory_allocated()
+        measured_peak_reserved = torch.cuda.max_memory_reserved()
+        guard.phase = work.kind + f"/verification/{rep}"
         scores, scoring = timed(work.score)
         work.remember_scores(scores)
         final = work.capture()
@@ -582,8 +602,8 @@ def benchmark(work, args, guard):
                 "full_checkpoint": saving,
                 "full_restore": restoring,
                 "restore_and_continuation_exact": True,
-                "peak_allocated_bytes": torch.cuda.max_memory_allocated(),
-                "peak_reserved_bytes": torch.cuda.max_memory_reserved(),
+                "peak_allocated_bytes": measured_peak_allocated,
+                "peak_reserved_bytes": measured_peak_reserved,
                 "steps": args.steps,
                 "effective_batch": 16,
                 "seconds_per_step": updates["wall_seconds"] / args.steps,
@@ -647,7 +667,15 @@ def main():
     p.add_argument("--compare-to", type=Path)
     p.add_argument(
         "--suite",
-        choices=("baseline", "scaling", "all", "ab", "capacity", "full-capacity"),
+        choices=(
+            "baseline",
+            "scaling",
+            "all",
+            "ab",
+            "capacity",
+            "full-capacity",
+            "purifier16",
+        ),
         default="baseline",
     )
     p.add_argument("--steps", type=int, default=100)
@@ -828,12 +856,23 @@ def main():
                 model.load_state_dict(full["models"][name])
                 model.eval()
             e.feature_audit_tag = "performance-only"
-            audit = GPUFeatureAudit(e)
-            audit.cache()
+            audit = None
+            if args.suite != "purifier16":
+                audit = GPUFeatureAudit(e)
+                audit.cache()
             torch.cuda.synchronize()
             report["resource_and_real_feature_cache_seconds"] = (
                 time.perf_counter() - setup_start
             )
+            if args.suite == "purifier16":
+                report["teacher_cache_setup"] = {
+                    role: {
+                        "seconds": bank.seconds,
+                        "bytes": bank.bytes,
+                        "device": str(bank.device),
+                    }
+                    for role, bank in banks.items()
+                }
             report["comparison_contract"] = {
                 "probe_source_sha256": {
                     Path(__file__).name: sha(__file__),
@@ -849,6 +888,15 @@ def main():
                     "b_r3_h100_ab.py": sha(Path(__file__).with_name("b_r3_h100_ab.py")),
                     "b_r3_full_capacity.py": sha(
                         Path(__file__).with_name("b_r3_full_capacity.py")
+                    ),
+                    **(
+                        {
+                            "b_purifier_microprofile.py": sha(
+                                Path(__file__).with_name("b_purifier_microprofile.py")
+                            )
+                        }
+                        if args.suite == "purifier16"
+                        else {}
                     ),
                 },
                 "protected_sha256": protected,
@@ -881,7 +929,9 @@ def main():
                 "profile_steps": args.profile_steps,
                 "equivalence_steps": args.equivalence_steps,
                 "precision": "original FP32, no AMP or compilation",
-                "workloads": [
+                "workloads": ["purifier"]
+                if args.suite == "purifier16"
+                else [
                     "purifier",
                     "control",
                     "identity-p1-spatial",
@@ -943,6 +993,12 @@ def main():
                     old / "snapshots/purifier-2000.pt",
                     args,
                     guard,
+                )
+            if args.suite == "purifier16":
+                from b_purifier_microprofile import run_microprofile
+
+                report["purifier_microbatch"] = run_microprofile(
+                    e, banks, engine, old / "snapshots/purifier-2000.pt", args, guard
                 )
             guard.check()
             for path, expected in protected.items():
@@ -1039,6 +1095,7 @@ def main():
                     "ab": report.get("ab", {}).get("brief"),
                     "capacity": report.get("capacity", {}).get("brief"),
                     "full_capacity": report.get("full_capacity", {}).get("brief"),
+                    "purifier_microbatch": report.get("purifier_microbatch"),
                     "no_optimization_speedup_claimed": args.compare_to is None
                     and not (
                         report["valid_measurement"]
