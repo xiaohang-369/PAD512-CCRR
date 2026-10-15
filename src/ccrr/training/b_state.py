@@ -21,6 +21,7 @@ def binding(cfg):
                 "common": common_binding(cfg),
                 "freeze_sha256": cfg["stage_a_source"]["freeze_sha256"],
                 "batch_pairs": cfg.get("batch_pairs", 16),
+                "initialization": cfg.get("b_initialization", "original"),
                 "b_cache_device": cfg.get("b_cache_device", "cpu"),
                 "b_cache_bytes": cfg.get("b_cache_bytes", 4 * 1024**3),
                 "b_audit_cache_bytes": cfg.get("b_audit_cache_bytes", 8 * 1024**3),

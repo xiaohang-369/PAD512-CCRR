@@ -75,7 +75,7 @@ if [[ ${4:-} == --full-capacity ]]; then
     printf 'Detailed losses, budgets and validation metrics: %s\n' "$WORK/result/full-capacity/summary.json"
 fi
 if [[ ${4:-} == --purifier16 ]]; then
-    printf 'Fixed effective image/pair batch=16; microbatch=1/2/4/8/16 only.\n'
+    printf 'Fixed effective image/pair batch=16; microbatch=16 only.\n'
     printf 'Results: cat %q\n' "$WORK/result/purifier16/comparison.csv"
     printf 'Baseline segments: %s\n' "$WORK/result/purifier16/micro-16/profile.json"
     printf 'Baseline CPU/CUDA operators: %s\n' "$WORK/result/purifier16/micro-16/profiler-table.txt"

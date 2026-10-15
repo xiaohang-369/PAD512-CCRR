@@ -65,6 +65,9 @@ def stage_b(experiment):
     require(
         e.mfm is not None and bool(e.purifier.stats_ready), "Teacher stages required"
     )
+    from ccrr.training.b_initialization import record_start
+
+    record_start(e)
     e.purifier.train().requires_grad_(True)
     e.sem_attacker.train().requires_grad_(True)
     opt = optimizer([e.purifier], [1e-4])

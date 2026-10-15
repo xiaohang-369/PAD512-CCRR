@@ -90,6 +90,9 @@ def restore_dependencies(experiment, stage):
         load_checkpoint(
             root / "checkpoints/mfm_probe.pt", {"purifier": experiment.purifier}
         )
+        from ccrr.training.b_initialization import after_frozen_a_restore
+
+        after_frozen_a_restore(experiment)
         return
     experiment.acceptance = json.loads(
         (experiment.output / "acceptance.json").read_text()

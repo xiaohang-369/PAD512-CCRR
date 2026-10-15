@@ -37,6 +37,7 @@ from ccrr.training.b_functional import check_functional
 from ccrr.training.b_diagnostics import isolated_rng
 from ccrr.runtime.checkpoints import save_checkpoint, load_checkpoint
 from ccrr.data.pad import rng_for
+from ccrr.training.b_initialization import initialize_control, image_rng_stage, version
 from probe_stage_a_speed import exact_equal
 
 
@@ -49,6 +50,7 @@ def control_replay(e):
         def run(name, count, resume=False):
             seed_everything(e.seed)
             model = ReconstructionControl(e.purifier.mean, e.purifier.std).to(e.device)
+            initialize_control(e, model)
             opt = optimizer([model], [1e-4])
             sched = TeacherSchedule(opt, 10000)
             path = root / (name + ".pt")
@@ -57,7 +59,7 @@ def control_replay(e):
                 sched.load_state_dict(raw["training_state"]["scheduler"])
             for step in range(sched.next_step, sched.next_step + count):
                 ids = (
-                    rng_for(e.seed, "B-control", "images", step)
+                    rng_for(e.seed, image_rng_stage(e.cfg), "images", step)
                     .integers(len(e.fit), size=16)
                     .tolist()
                 )
@@ -334,6 +336,7 @@ def main():
         "checker_sha256": sha256(__file__),
         "stage_a_config_sha256": sha256(args.config),
         "stage_a_freeze_sha256": cfg["stage_a_source"]["freeze_sha256"],
+        "initialization": version(cfg),
         "variants": results,
         "fastest_microbatch": fastest,
         "limitations": [

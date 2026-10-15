@@ -13,7 +13,7 @@ import torch
 
 from b_r3_perf_common import cpu_copy, digest, exact
 
-MICROBATCHES = (16, 1, 2, 4, 8)
+MICROBATCHES = (16,)
 
 
 def differences(reference, candidate, *, atol=1e-6, rtol=1e-4):

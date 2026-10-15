@@ -15,6 +15,7 @@ SCIENTIFIC_GAPS = ()
 
 def verify_execution_report(cfg):
     from ccrr.training.b_state import binding
+    from ccrr.training.b_initialization import version, LEGACY
 
     entry = cfg.get("b_execution_report", {})
     path = Path(entry.get("path", ""))
@@ -23,6 +24,10 @@ def verify_execution_report(cfg):
         "B execution report missing/digest mismatch",
     )
     r = json.loads(path.read_text())
+    require(
+        r.get("initialization", LEGACY) == version(cfg),
+        "B report initialization mismatch",
+    )
     checker = Path(__file__).resolve().parents[3] / "scripts/check_stage_b_host.py"
     require(
         checker.is_file() and r.get("checker_sha256") == sha256(checker),
@@ -127,6 +132,9 @@ def verify_teachers(cfg):
 
 
 def execution_options(cfg):
+    from ccrr.training.b_initialization import version
+
+    version(cfg)
     n = cfg.get("microbatch", 1)
     require(type(n) is int and n in (1, 2, 4, 8, 16), "B microbatch must be 1/2/4/8/16")
     require(

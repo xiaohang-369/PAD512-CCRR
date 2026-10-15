@@ -87,6 +87,9 @@ def prepare_control(e, bank):
     with isolated_rng():
         seed_everything(int(rng_for(e.seed, "B", CONTROL_PROTOCOL, 0).integers(2**31)))
         model = ReconstructionControl(e.purifier.mean, e.purifier.std).to(e.device)
+        from ccrr.training.b_initialization import initialize_control, image_rng_stage
+
+        initialize_control(e, model)
         opt = optimizer([model], [1e-4])
         scheduler = TeacherSchedule(opt, 10000)
         best = None
@@ -113,7 +116,7 @@ def prepare_control(e, bank):
             val_bank = TeacherBank(e, "val_select", identity=False)
         print(f"B_CONTROL_START: {scheduler.next_step}/10000", flush=True)
         for step in range(scheduler.next_step, 10000):
-            rng = rng_for(e.seed, "B-control", "images", step)
+            rng = rng_for(e.seed, image_rng_stage(e.cfg), "images", step)
             ids = rng.integers(len(e.fit), size=16).tolist()
             loss = control_update(
                 model, bank, ids, e.cfg.get("microbatch", 1), opt, scheduler
@@ -193,6 +196,7 @@ def prepare_control(e, bank):
                 "budget_completed": 10000,
                 "selection": best,
                 "sha256": sha256(selected),
+                "initialization": e.cfg.get("b_initialization", "original"),
                 "binding": bound,
             },
         )
