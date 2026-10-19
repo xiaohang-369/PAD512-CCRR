@@ -29,6 +29,10 @@ __pycache__/
 .env
 .env.*
 configs/*.local.yaml
+/v2/configs/*.local.json
+/v2/private/
+/v2/runs/
+/v2/cache/
 
 # Internal research records stay on the local machine.
 /docs/
