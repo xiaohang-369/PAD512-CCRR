@@ -193,6 +193,21 @@ CUDA_VISIBLE_DEVICES="" "$V2_PYTHON" "$V2_RELEASE/v2/tools/check_reid_loader.py"
 
 ## 7. 本地工程验证（2026-10-19）
 
+### A2 失败后的两个有限诊断（不重新训练）
+
+`python -m ccrr_v2.reid_diagnostics --resources <resources.json> --training-run <completed-A2-run> --output <fresh-runs-directory> --device cuda:0` 仅支持已完成的 d585c50 V2 ReID 运行，沿用绑定的 seed=20261019、10000步和batch=16。它不包含优化器或训练入口，也不产生新checkpoint。
+
+1. 仅读取fit元数据，重放完整PairSampler随机调用，包含训练未采用负对的随机数消耗。统计正对资格、实际采样患者/病灶/图像、RGB/灰度覆盖、重复图像及从未作为正确标签出现的分类类别；核对原运行fallback计数。这里的“实际采样”是按原代码与seed重建，不是原训练期间保存的逐批轨迹。未被正对抽中的分类类别仍收到softmax负类梯度，不能称其参数完全未训练。
+2. 固定比较公开ResNet50初始化、1000、8000及10000步，只读取val_tune图像并按既有P1/P2三方向评价。全程eval/inference_mode，核对参数及BN等buffer摘要不变；原checkpoint和binding/status运行前后核对摘要不变。不使用val_select/test图像，不选新checkpoint，不改准入门槛。val_tune已用于原8000步选择，本次点估计只是开发诊断，不是独立验证或统计显著性证明。
+
+`v2/tools/run_reid_diagnostics.sh <V2_ROOT> <V2_PYTHON> <completed-A2-run>` 包装上述两个诊断，要求提前设置授权GPU的`CUDA_VISIBLE_DEVICES`，生成唯一日志和新输出目录。共享卡已有进程不会触发拒绝，也不会被停止。无需安装依赖。
+
+输出包括`binding.json`、`coverage_summary.json`、`comparison_summary.json`、`comparison_table.tsv`、`status.json`。含患者标识的`private-patient-draws.json`及详细`private-report-*.json`只留私有服务器，不上传GitHub；回传汇总即可。失败保留新目录，不能覆盖重跑。完成有限诊断不等于ReID科学验收通过，也不自动进入S0/灰度生成训练。
+
+本次本地全套33项CPU合成测试通过（原24项＋新增9项），耗时27.93秒。新增检查覆盖原采样RNG与未覆盖类别、父运行/步骤/shape错误拒绝、真实合成图像与P1/P2评价链路、BN/参数不变、禁止val_select/test推理，以及采样重放不符时停止并保留原输入。Ruff、shell语法、CLI帮助与diff检查通过；服务器真实诊断结果待回传。
+
+### 最初版本的工程验证记录
+
 18项CPU合成检查通过，包含S0更新、冻结攻击者的输入梯度、独立攻击训练、ReID嵌入接口、患者配对权重、输出防覆盖及旧checkpoint配置拒绝；Ruff、shell语法和CLI帮助检查通过。没有加载真实医学图像或公开模型权重，没有启动服务器训练。
 
 本地临时环境为Python 3.11、PyTorch 2.6.0；macOS的SciPy 1.15.3二进制加载失败，因此仅本地临时环境改为SciPy 1.16.3完成测试。未修改根项目依赖、服务器环境或旧环境。不能用这次CPU检查代替服务器固定依赖版本、真实预训练权重、batch=16和CUDA的运行核验。
