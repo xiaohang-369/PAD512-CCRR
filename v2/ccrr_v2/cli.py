@@ -51,11 +51,26 @@ def parser():
     p.add_argument("--s0", help="Completed V2 S0 run; omit for raw-feature audit")
     p.add_argument("--variant", choices=("medical", "joint"))
     p.add_argument("--device", default="cuda:0")
+    p.add_argument(
+        "--loader-workers",
+        type=int,
+        default=0,
+        help="ReID CPU loader workers; 0 keeps serial loading",
+    )
+    p.add_argument(
+        "--prefetch-batches", type=int, default=2, help="ReID queued batches per worker"
+    )
     return p
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.loader_workers < 0 or args.prefetch_batches < 1:
+        raise ValueError("Invalid loader worker/prefetch setting")
+    if args.stage != "reid" and (
+        args.loader_workers != 0 or args.prefetch_batches != 2
+    ):
+        raise ValueError("Loader settings currently apply only to ReID")
     resources, cfg = read(args.resources), read(args.config)
     validate_config(cfg)
     validate_resources(resources)
@@ -107,7 +122,23 @@ def main(argv=None):
         resources,
         args.output,
         args.stage,
-        {**cfg, "variant": args.variant, "device": args.device},
+        {
+            **cfg,
+            "variant": args.variant,
+            "device": args.device,
+            **(
+                {
+                    "loader": {
+                        "workers": args.loader_workers,
+                        "prefetch_batches": args.prefetch_batches,
+                        "ordered": True,
+                        "start_method": "spawn" if args.loader_workers else None,
+                    }
+                }
+                if args.stage == "reid"
+                else {}
+            ),
+        },
         parents,
     )
     try:
@@ -119,7 +150,14 @@ def main(argv=None):
         elif args.stage == "reid":
             from .reid import train
 
-            train(resources, cfg, output, device)
+            train(
+                resources,
+                cfg,
+                output,
+                device,
+                loader_workers=args.loader_workers,
+                prefetch_batches=args.prefetch_batches,
+            )
         else:
             cache = load_cache(args.features, resources, device)
             from .learning import apply_s0, fit_probe, train_s0

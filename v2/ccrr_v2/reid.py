@@ -1,7 +1,8 @@
 """Fresh patient ReID from public ResNet50, never a previous learned teacher."""
 
 from copy import deepcopy
-import numpy as np
+import json
+from time import perf_counter
 import torch
 from torch import nn
 
@@ -10,6 +11,7 @@ from ccrr.teachers.adapters import IdentityModel, freeze_bn
 from ccrr.tensor_ops import gray
 from ccrr.evaluation.teachers import teacher_identity_scores, reid_gate
 from .runtime import completed, read, save_model, seed_all, write
+from .loading import ReIDBatchIndices, cpu_batches, to_device
 
 
 def initialize(resources, patients):
@@ -84,7 +86,7 @@ def evaluate(model, data, device, cfg, bootstrap=False):
     return reports
 
 
-def train(resources, cfg, output, device):
+def train(resources, cfg, output, device, *, loader_workers=0, prefetch_batches=2):
     seed_all(cfg["seed"])
     fit = PADData(resources["data_root"], "fit")
     tune = PADData(resources["data_root"], "val_tune")
@@ -93,14 +95,32 @@ def train(resources, cfg, output, device):
     optimizer = torch.optim.Adam(
         [p for p in model.parameters() if p.requires_grad], lr=cfg["reid_lr"]
     )
-    sampler, rng = PairSampler(fit), np.random.default_rng(cfg["seed"])
+    sampler = PairSampler(fit)
+    batches = iter(
+        cpu_batches(
+            fit,
+            ReIDBatchIndices(sampler, cfg["seed"], cfg["reid_steps"]),
+            workers=loader_workers,
+            prefetch=prefetch_batches,
+            seed=cfg["seed"],
+            pin_memory=loader_workers > 0 and torch.device(device).type == "cuda",
+        )
+    )
+    print(
+        f"REID_LOADER workers={loader_workers} prefetch_per_worker={prefetch_batches} "
+        "ordered=True sampler=legacy_parent_rng",
+        flush=True,
+    )
     best, selected, best_step = -float("inf"), None, None
+    window_start, data_wait = perf_counter(), 0.0
+    previous_logged_step = 0
     for step in range(1, cfg["reid_steps"] + 1):
         model.train()
         freeze_bn(model)
-        positives = sampler.sample(rng)[:8]
-        indices = [i for a, b, _, _ in positives for i in (a, b)]
-        batch = collate([fit[i] for i in indices], device)
+        wait_start = perf_counter()
+        cpu_batch = next(batches)
+        data_wait += perf_counter() - wait_start
+        batch = to_device(cpu_batch, device, non_blocking=loader_workers > 0)
         image = batch["x"] if step % 2 else gray(batch["x"])
         optimizer.zero_grad(set_to_none=True)
         result = model(image, batch["rect"])
@@ -111,14 +131,37 @@ def train(resources, cfg, output, device):
             raise RuntimeError("Nonfinite ReID objective")
         loss.backward()
         optimizer.step()
-        if step % 100 == 0:
+        if step % 100 == 0 or step == cfg["reid_steps"]:
+            # Scalar reads wait for the GPU work before timing the window.
+            ce_value, metric_value = float(ce.detach()), float(metric.detach())
+            elapsed = perf_counter() - window_start
+            count = step - previous_logged_step
+            timing = {
+                "step": step,
+                "window_steps": count,
+                "ce": ce_value,
+                "triplet": metric_value,
+                "wall_seconds": elapsed,
+                "data_wait_seconds": data_wait,
+                "steps_per_second": count / elapsed,
+                "includes_worker_startup": previous_logged_step == 0,
+            }
+            with (output / "training.jsonl").open("a") as f:
+                f.write(json.dumps(timing, allow_nan=False) + "\n")
             print(
-                f"REID {step}/{cfg['reid_steps']} ce={float(ce):.6f} triplet={float(metric):.6f}",
+                f"REID {step}/{cfg['reid_steps']} ce={ce_value:.6f} "
+                f"triplet={metric_value:.6f} steps_per_s={count / elapsed:.3f} "
+                f"data_wait_s={data_wait:.3f}",
                 flush=True,
             )
+            previous_logged_step = step
+            window_start, data_wait = perf_counter(), 0.0
         if step % 1000 == 0 or step == cfg["reid_steps"]:
             report = evaluate(model, tune, device, cfg)
             values = [r["cosine"].get("auroc") for r in report["p1"]["reports"]]
+            with (output / "validation.jsonl").open("a") as f:
+                f.write(json.dumps({"step": step, "p1_auroc": values}) + "\n")
+            print(f"REID_TUNE step={step} p1_auroc={values}", flush=True)
             if None not in values and min(values) > best:
                 best, selected, best_step = (
                     min(values),
@@ -126,6 +169,11 @@ def train(resources, cfg, output, device):
                     step,
                 )
             save_model(output / f"reid-step-{step}.pt", model, step)
+            # Validation and checkpoint writes are not training throughput.
+            window_start, data_wait = perf_counter(), 0.0
+    # Exhaust the finite loader so worker processes exit before final evaluation.
+    if next(batches, None) is not None:
+        raise RuntimeError("Unexpected extra ReID batch")
     if selected is None:
         raise RuntimeError("No valid P1 endpoint; do not promote as patient teacher")
     model.load_state_dict(selected)

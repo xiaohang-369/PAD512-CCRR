@@ -12,6 +12,7 @@
 | `v2/ccrr_v2/features.py` | 冻结 PanDerm 的真实 RGB/灰度特征缓存；fit 标准化 |
 | `v2/ccrr_v2/learning.py` | 新探针与 S0 医学/联合对照训练循环 |
 | `v2/ccrr_v2/reid.py` | 公开 ResNet-50 起点的新 ReID 训练与 P1/P2 能力评价 |
+| `v2/ccrr_v2/loading.py` | ReID 按序多进程 CPU 加载、有限预取与设备传输 |
 | `v2/ccrr_v2/audit.py` | 冻结表示后重新拟合独立 Linear/MLP 与全局/空间攻击者 |
 | `v2/ccrr_v2/runtime.py` | 资源摘要、全新输出目录、提交绑定、运行状态 |
 | `v2/run.sh` | 唯一推荐的 V2 入口；每次只执行一个显式阶段 |
@@ -161,6 +162,30 @@ bash "$V2_RELEASE/v2/run.sh" audit --resources "$V2_ROOT/private/resources.json"
 各命令可通过 `set -o pipefail` 后接 `2>&1 | tee "$V2_ROOT/logs/<唯一阶段名>-<run-id>.log"` 保存终端日志；日志路径也须全新。首版不提供断点恢复命令，模型checkpoint不等于含优化器/RNG的完整恢复状态；中断时保留失败目录、报告已完成预算，不从模型快照悄悄续训。
 
 ## 6. 结果与下一步
+
+### ReID 并行加载修订（2026-10-19）
+
+服务器实际 V2 解释器为 `/home/zwc/anaconda3/envs/ccrr_v2/bin/python`。上文早期 `/data/zwc/zyh/envs/ccrr_v2` 是规划路径，已建立环境的服务器不应重新执行环境创建模板。
+
+并行加载只对新版本的 `reid` 训练启用：在现有命令后添加 `--loader-workers 4 --prefetch-batches 2`。默认 workers=0 保留串行对照。每个工作进程最多预取2批（4个进程共8批），采用spawn，仅执行CPU读取、原预处理及原哈希验证；主进程生成配对并按序接收。工作进程torch线程数为1。CUDA运行启用pinned memory及非阻塞传输；没有新增CUDA预取流，不宣称H2D与GPU计算已实现完全重叠。
+
+固定batch=16、原完整PairSampler随机调用、正对顺序、标签、灰度奇偶步、优化器与损失不变。DataLoader使用独立torch Generator，避免工作进程初始化改变模型随机状态。不删除未使用负对的随机调用，不做图像缓存、AMP或多GPU；这次仅改变加载调度。验证集评价仍使用原串行路径。预取可能提前推进采样器，当前仍不支持精确断点恢复。
+
+运行binding.json记录worker数量、预取设置、顺序和spawn方式。新增training.jsonl记录每100步CE/triplet、窗口吞吐及主进程等待批次时间；第一窗口包含worker启动成本，评价与checkpoint写出不计入训练窗口。批次等待时间可能与上一批GPU工作重叠，不能将wall减去wait当作GPU计算时间。validation.jsonl及终端保存每1000步P1三个方向的val_tune AUROC，端点选择规则不变。
+
+先在服务器新固定提交下运行有限CPU数据一致性检查（独立新输出目录）：
+
+```bash
+export V2_PYTHON=/home/zwc/anaconda3/envs/ccrr_v2/bin/python
+export PYTHONPATH="$V2_RELEASE/v2:$V2_RELEASE/src"
+export PYTHONDONTWRITEBYTECODE=1
+CUDA_VISIBLE_DEVICES="" "$V2_PYTHON" "$V2_RELEASE/v2/tools/check_reid_loader.py" \
+  --resources "$V2_ROOT/private/resources.json" \
+  --output "$V2_ROOT/runs/loader-check/<全新run-id>" \
+  --workers 4 --prefetch-batches 2 --batches 16
+```
+
+该检查使用相同fit采样序列，对串行和并行批次的图像、mask、标签、坐标及辅助字段逐批做内容摘要比较，错误直接失败；不加载模型、不更新参数、不读取test。CPU等待时间受首次启动、缓存和校验工作影响，不是训练提速倍数。检查成功后仍须另立新运行确认H100实测吞吐及数值，不覆盖正在运行的833fe4a快照，不把旧模型checkpoint当完整续训状态。软件依赖不变，无需在旧环境安装包。
 
 每次产生 `binding.json`、`status.json` 及相应模型/指标。`completed`只表示该程序完成预算；`scientific_acceptance=not_evaluated`不能解读为通过或失败。报告含患者关联明细，留在私有服务器；回传仅必要汇总，不上传GitHub。
 
