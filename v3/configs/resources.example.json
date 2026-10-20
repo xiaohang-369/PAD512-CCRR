@@ -1,0 +1,15 @@
+{
+  "schema": "ccrr-v3-resources-1",
+  "data_root": "/ABSOLUTE/READ_ONLY/PAD-UFES-20",
+  "workspace_root": "/ABSOLUTE/PRIVATE/PAD512-CCRR-V3",
+  "panderm": {
+    "path": "/ABSOLUTE/PUBLIC/panderm.pth",
+    "sha256": "be1e0fb108b3bc58721cb5195f136c948160799438f222acf1fd142230ac1ff1",
+    "source": "/ABSOLUTE/AUDITED/modeling_finetune.py",
+    "source_sha256": "63fbb03283bb5d61ebd24e4790b66f3495996cc37f000f7003eec0a277bd1ab1"
+  },
+  "resnet50": {
+    "path": "/ABSOLUTE/PUBLIC/resnet50.pth",
+    "sha256": "11ad3fa62ca79e40addfd354a8ec4b7c75143b3038b8d2a807fbc68deab379ca"
+  }
+}

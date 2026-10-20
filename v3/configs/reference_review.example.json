@@ -1,0 +1,7 @@
+{
+  "schema": "ccrr-v3-reference-review-1",
+  "targets_artifact_sha256": "REPLACE_WITH_REVIEWED_TARGETS_ARTIFACT_SHA256",
+  "decision": "pending",
+  "directions": ["rgb_rgb", "gray_rgb", "gray_gray"],
+  "reason": ""
+}

@@ -33,6 +33,10 @@ configs/*.local.yaml
 /v2/private/
 /v2/runs/
 /v2/cache/
+/v3/configs/*.local.json
+/v3/private/
+/v3/runs/
+/v3/cache/
 
 # Internal research records stay on the local machine.
 /docs/
