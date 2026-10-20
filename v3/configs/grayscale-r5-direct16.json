@@ -1,0 +1,53 @@
+{
+  "schema": "ccrr-grayscale-r5-direct16-1",
+  "scope": "development_only",
+  "seed": 20261020,
+  "batch_size": 16,
+  "microbatch_size": 16,
+  "accumulation_steps": 1,
+  "baseline_updates": 2000,
+  "c1_cycles": 10000,
+  "checkpoint_every": 250,
+  "diagnostic_batch_size": 16,
+  "optimizer": "AdamW",
+  "ed_lr": 0.0001,
+  "p_lr": 1e-05,
+  "betas": [
+    0.9,
+    0.999
+  ],
+  "eps": 1e-08,
+  "weight_decay": 0.0001,
+  "decay_bias": false,
+  "warmup_updates": 100,
+  "lr_floor_fraction": 0.1,
+  "schedule": "phase_warmup_cosine_preserve_adam_moments",
+  "precision_bits": 8,
+  "fp32": true,
+  "padding": "sender_invalid_constant_128_over_255",
+  "precision_initialization": "copy_8bit_condition_to_4bit",
+  "weights": {
+    "rgb_l1": 1.0,
+    "rgb_ssim": 0.1,
+    "rgb_clinical": 0.1,
+    "kd": 0.5,
+    "appearance": 1.0,
+    "public_clinical": 0.1,
+    "range": 0.001,
+    "privacy": 0.0,
+    "feature_alignment": 0.0,
+    "rate": 0.0,
+    "region": 0.0,
+    "concept": 0.0
+  },
+  "primary_supervisor": 8500,
+  "comparison_supervisor": 7000,
+  "sampling": "uniform_images_with_replacement_same_batch_for_ed_and_p",
+  "variants": [
+    "learned",
+    "fixed_gray"
+  ],
+  "no_automatic_winner": true,
+  "test_images_used": false,
+  "independent_pixel_evaluation": "deferred_separate_protocol"
+}

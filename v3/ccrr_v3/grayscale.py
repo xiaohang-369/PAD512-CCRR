@@ -234,8 +234,31 @@ def parameter_mode(system, part):
             p.grad = None
 
 
+def canonical_gray(g, valid):
+    """Sender-only support rule; the receiver is never given the source mask."""
+    if valid.shape != g.shape or not torch.all((valid == 0) | (valid == 1)):
+        raise ValueError("Binary support must match the one-channel public image")
+    return torch.where(valid.bool(), g, g.new_tensor(128 / 255))
+
+
+def public_forward(system, x, valid, bits=8):
+    raw, g = system.public(x)
+    g = canonical_gray(g, valid)
+    return dict(gray_raw=raw, gray=g, **system.reconstruct(x, g, bits))
+
+
 def update(
-    system, supervisor, b, targets, weights, optimizer, part, inspect_gradients=False
+    system,
+    supervisor,
+    b,
+    targets,
+    weights,
+    optimizer,
+    part,
+    inspect_gradients=False,
+    *,
+    canonical_padding=False,
+    step_optimizer=True,
 ):
     """One B/ED/P substep. Frozen E/D keep BOTH input paths differentiable."""
     parameter_mode(system, part)
@@ -243,13 +266,17 @@ def update(
     if part == "ed":
         with torch.no_grad():
             _, g = system.public(x)
+            if canonical_padding:
+                g = canonical_gray(g, v)
         out = system.reconstruct(x, g.detach(), 8)
     elif part == "b":
         parameter_mode(system, "ed")
         g = y.detach()
+        if canonical_padding:
+            g = canonical_gray(g, v)
         out = system.reconstruct(x, g, 8)
     elif part == "p":
-        out = system(x, 8)
+        out = public_forward(system, x, v) if canonical_padding else system(x, 8)
         g = out["gray"]
     else:
         raise ValueError("Unknown update substep")
@@ -312,7 +339,8 @@ def update(
         )
     if any(p.grad is not None for p in supervisor.parameters()):
         raise RuntimeError("Frozen pixel supervisor accumulated a parameter gradient")
-    optimizer.step()
+    if step_optimizer:
+        optimizer.step()
     terms.update(loss=loss.detach(), **{f"grad_{k}": n for k, n in norms.items()})
     terms.update(
         private_min=out["z"].detach().min(),

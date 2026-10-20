@@ -83,7 +83,9 @@ def state_digest(module):
     return h.hexdigest()
 
 
-def register():
+def register(plan=None, config=None):
+    plan = PLAN if plan is None else Path(plan)
+    config = CONFIG if config is None else config
     resources = read(ROOT / "private/resources.json")
     validate_resources(resources)
     print(
@@ -127,22 +129,22 @@ def register():
             candidates[0] / "artifact.json"
         )
     check_hashes(parents)
-    PLAN.mkdir(parents=True, exist_ok=False)
-    write(PLAN / "config.json", CONFIG)
+    plan.mkdir(parents=True, exist_ok=False)
+    write(plan / "config.json", config)
     write(
-        PLAN / "registration.json",
+        plan / "registration.json",
         dict(
             state="registered",
             source_commit=current_commit(),
             parents=parents,
-            config_sha256=digest(PLAN / "config.json"),
+            config_sha256=digest(plan / "config.json"),
             resources=resources,
             decision="user_selected_8500_primary_7000_control_for_experimental_integration",
             training_started=False,
             scientific_acceptance="not_evaluated",
         ),
     )
-    print("GRAYSCALE_REGISTERED:", PLAN, "training_started=False", flush=True)
+    print("GRAYSCALE_REGISTERED:", plan, "training_started=False", flush=True)
 
 
 def load_teacher(resources, step, device):
