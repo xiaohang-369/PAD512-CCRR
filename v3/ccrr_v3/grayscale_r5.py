@@ -21,7 +21,7 @@ from .grayscale_dev import CONFIG as PILOT_CONFIG, state_digest, teacher_targets
 from .runtime import seed_all
 
 CONFIG = {
-    "schema": "ccrr-grayscale-r5-direct16-1",
+    "schema": "ccrr-grayscale-r5-direct16-a0-2",
     "scope": "development_only",
     "seed": 20261020,
     "batch_size": 16,
@@ -43,6 +43,9 @@ CONFIG = {
     "schedule": "phase_warmup_cosine_preserve_adam_moments",
     "precision_bits": 8,
     "fp32": True,
+    "cudnn_allow_tf32": True,
+    "matmul_allow_tf32": False,
+    "numeric_policy": "a0_compatible_float32_tensors_cudnn_tf32_allowed_matmul_tf32_disabled",
     "padding": "sender_invalid_constant_128_over_255",
     "precision_initialization": "copy_8bit_condition_to_4bit",
     "weights": deepcopy(PILOT_CONFIG["weights"]),
@@ -54,6 +57,19 @@ CONFIG = {
     "test_images_used": False,
     "independent_pixel_evaluation": "deferred_separate_protocol",
 }
+
+
+def configure_numerics():
+    """A0-compatible process policy for verification, targets, training and diagnostics.
+
+    Float32 tensor storage does not imply that every cuDNN kernel disables TF32.
+    The returned server reproduction has exact A0 equality at batch16 with this
+    policy. No autocast or low precision parameter/optimizer storage is used.
+    """
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 def json_hash(obj):
@@ -182,7 +198,7 @@ class Engine:
         self.rows_hash = json_hash(fit.rows)
         # Teacher loading must not perturb the paired generators' initialization.
         seed_all(self.cfg["seed"])
-        torch.backends.cudnn.allow_tf32 = False
+        configure_numerics()
         self.model = GrayscaleSystem().to(self.device)
         copy_precision_condition(self.model.decoder)
         self.initial_model_hash = state_digest(self.model)

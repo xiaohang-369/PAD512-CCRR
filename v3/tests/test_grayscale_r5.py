@@ -269,7 +269,16 @@ def test_full16_verify_backward_no_updates_and_initial_diagnostics(
     # Full batch uses32px; the one receiver serialization sample is tested separately at512.
     e = engine()
     before = snapshot(e.model)
-    monkeypatch.setattr(cli.old, "verify", lambda *a: [])
+    seen = {}
+
+    def old_verify(*a, **kwargs):
+        seen.update(kwargs)
+        seen["cudnn_tf32"] = torch.backends.cudnn.allow_tf32
+        return []
+
+    monkeypatch.setattr(cli.old, "verify", old_verify)
+    monkeypatch.setattr(cli.old, "FEATURES", tmp_path)
+    r5.atomic_json(tmp_path / "binding.json", {"config": {"batch_size": 16}})
     monkeypatch.setattr(cli, "make_engine", lambda *a: e)
     monkeypatch.setattr(cli, "PADData", SyntheticData)
     original = cli.public_forward
@@ -282,6 +291,8 @@ def test_full16_verify_backward_no_updates_and_initial_diagnostics(
     monkeypatch.setattr(cli, "public_forward", receiver512)
     files = cli.verify(tmp_path, {"data_root": "synthetic"}, 8500, torch.device("cpu"))
     report = read(tmp_path / "r5-verification.json")
+    assert seen == {"validation_batch_size": 16, "cudnn_tf32": True}
+    assert report["cudnn_allow_tf32"] and not report["matmul_allow_tf32"]
     assert report["batch_size"] == 16 and report["accumulation_steps"] == 1
     assert (
         report["verified"]
@@ -368,3 +379,86 @@ def test_no_implicit_train_or_unbudgeted_launch(monkeypatch):
         cli.main(["train"])
     with pytest.raises(SystemExit):
         cli.main(["start"])
+
+
+def test_a0_cache_real_path_checks_full_matched_batch_and_keeps_tolerance(
+    monkeypatch, tmp_path
+):
+    from ccrr.data.pad import collate
+    from ccrr.tensor_ops import gray
+    from ccrr_v3 import grayscale_dev as old
+
+    class Sixteen(SyntheticData):
+        def __init__(self):
+            super().__init__("", "fit", size=512)
+            self.rows = [dict(img_id=f"fit-{i}") for i in range(16)]
+
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, i):
+            return super().__getitem__(i % 6)
+
+    data, t = Sixteen(), teacher()
+    original = t.panderm.forward
+
+    def batch_sensitive_forward(x, rects):
+        f, v, r = original(x, rects)
+        # Simulate the measured class of backend drift, not the GPU's exact error.
+        return (
+            f + (0.02 if len(x) != 16 or not torch.backends.cudnn.allow_tf32 else 0),
+            v,
+            r,
+        )
+
+    monkeypatch.setattr(t.panderm, "forward", batch_sensitive_forward)
+    monkeypatch.setattr(old, "load_teacher", lambda *a: t)
+    monkeypatch.setattr(old, "PADData", lambda *a: data)
+    monkeypatch.setattr(old, "FEATURES", tmp_path)
+    monkeypatch.setattr(torch.backends.cudnn, "allow_tf32", True)
+    b = collate([data[i] for i in range(16)], torch.device("cpu"))
+    with torch.no_grad():
+        fs = torch.stack(
+            [t.panderm(x, b["rect"])[0] for x in (b["x"], gray(b["x"]))], 1
+        )
+        coverage = torch.ones(16, 1, 4, 4)
+    r5.atomic_json(tmp_path / "features.json", {"roles": {"fit": {"file": "fit.pt"}}})
+    obj = dict(rows=data.rows, features=fs, coverage=coverage)
+    torch.save(obj, tmp_path / "fit.pt")
+    with pytest.raises(ValueError, match="Live PanDerm differs"):
+        old.verify(tmp_path, {"data_root": "synthetic"}, 8500, torch.device("cpu"))
+    old.verify(
+        tmp_path,
+        {"data_root": "synthetic"},
+        8500,
+        torch.device("cpu"),
+        validation_batch_size=16,
+    )
+    report = read(tmp_path / "verification.json")
+    assert report["cache_verification_batch_size"] == 16
+    assert all(d["cache_max_abs_error"] == 0 for d in report["domains"].values())
+    assert not report["model_parameters_updated"]
+    # Fails if even the last image is wrong: checking only image0 is insufficient.
+    obj["features"][15, 0, 0, 0, 0] += 0.02
+    torch.save(obj, tmp_path / "fit.pt")
+    with pytest.raises(ValueError, match="Live PanDerm differs"):
+        old.verify(
+            tmp_path,
+            {"data_root": "synthetic"},
+            8500,
+            torch.device("cpu"),
+            validation_batch_size=16,
+        )
+
+
+def test_engine_overrides_prior_tf32_switch_to_bound_a0_policy(monkeypatch):
+    monkeypatch.setattr(torch.backends.cudnn, "allow_tf32", False)
+    monkeypatch.setattr(torch.backends.cuda.matmul, "allow_tf32", True)
+    e = engine()
+    assert torch.backends.cudnn.allow_tf32 and not torch.backends.cuda.matmul.allow_tf32
+    assert (
+        e.cfg["cudnn_allow_tf32"]
+        and e.cfg["numeric_policy"] == r5.CONFIG["numeric_policy"]
+    )
+    e.cycle()
+    assert torch.backends.cudnn.allow_tf32 and not torch.backends.cuda.matmul.allow_tf32

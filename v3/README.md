@@ -152,7 +152,7 @@ appearance遵照3×3十二邻接边、8×8池化对比和8/255亮度无惩罚区
 `v3/configs/grayscale-r5-direct16.json`。8500主监督、7000对照，绑定DEV2
 原checkpoint医学头；不以独立审计头成绩替代原头诊断，不重新训练分离器。
 
-- batch_size=16、microbatch_size=16、accumulation_steps=1，FP32，禁用TF32。
+- batch_size=16、microbatch_size=16、accumulation_steps=1，FP32张量/参数/优化器；cuDNN允许TF32、矩阵乘禁用TF32，与已复现A0一致。
   单次完整16图像前向/反向，不实施梯度累积、不自动缩batch。
 - AdamW：ED基准1e-4，P基准1e-5，betas=.9/.999、eps=1e-8，权重衰减1e-4，bias为0。
   每阶段100更新warmup后余弦至基准的0.1倍；B→C1保留ED矩状态，重启阶段日程。
@@ -184,3 +184,17 @@ CPU连续/恢复等价测试不等于跨硬件、库版本或所有CUDA算子的
 
 本实现范围为R5的B/C1准备，不包括C2/C3像素P2/P3训练、独立生成图评价、D1四位训练、
 源profile/认证流、Writer或完整授权。所有科学验收仍为not_evaluated。
+
+
+### R5 A0数值口径修正（2026-10-20）
+
+服务器诊断已证明：首16个fit样本在batch16、cuDNN TF32允许时RGB/灰度均与A0缓存逐元素相同；
+单图比较及batch16禁用cuDNN TF32都不满足原容差。源码、模型哈希与主要依赖版本一致。
+旧f46e634先用batch1检查缓存、随后Engine又关闭cuDNN TF32，这两处不一致由新版本同时修正。
+验证改为对首16个样本完整比较并在相同batch执行输入梯度检查，保留atol=rtol=1e-4；
+PNG与单图接收测试单列，不再混入缓存一致性条件。训练、目标、验证与诊断统一使用
+float32张量、cuDNN TF32允许、matmul TF32禁用，无autocast，无低精度参数或优化器状态。
+本次保留实际A0数值参照，不重新生成缓存或重训监督器。TF32是允许使用的后端模式，
+并不声称每个卷积一定用了TF32，也不承诺跨batch输出逐bit一致。
+新计划目录为plans/grayscale-r5-direct16-a0-20261020；旧登记、失败run与旧release全部保留。
+R5仍为直接batch16，无累积、不启动训练；新版本真实完整verify必须重新回传后才能算通过。

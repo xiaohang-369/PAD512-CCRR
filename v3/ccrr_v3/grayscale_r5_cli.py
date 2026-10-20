@@ -16,6 +16,7 @@ from . import grayscale_dev as old
 from .grayscale import public_forward, update
 from .grayscale_r5 import (
     CONFIG,
+    configure_numerics,
     Engine,
     atomic_json,
     diagnose,
@@ -35,7 +36,7 @@ from .runtime import (
 )
 from .dev2 import ROOT, current_commit, check_hashes
 
-PLAN = ROOT / "plans/grayscale-r5-direct16-20261020"
+PLAN = ROOT / "plans/grayscale-r5-direct16-a0-20261020"
 
 
 def registration():
@@ -68,7 +69,13 @@ def make_engine(resources, step, device, variant):
 
 def verify(output, resources, step, device):
     # Reuses live PanDerm/A0 equality, each-domain gradient, PNG and frozen-state checks.
-    files = old.verify(output, resources, step, device)
+    configure_numerics()
+    a0_binding = read(old.FEATURES / "binding.json")
+    if a0_binding["config"]["batch_size"] != CONFIG["batch_size"]:
+        raise ValueError("A0 and live verification batch must match the registered16")
+    files = old.verify(
+        output, resources, step, device, validation_batch_size=CONFIG["batch_size"]
+    )
     engine = make_engine(resources, step, device, "learned")
     before = old.state_digest(engine.model)
     b = collate(
@@ -130,6 +137,9 @@ def verify(output, resources, step, device):
         supervisor_step=step,
         batch_size=16,
         accumulation_steps=1,
+        numeric_policy=CONFIG["numeric_policy"],
+        cudnn_allow_tf32=torch.backends.cudnn.allow_tf32,
+        matmul_allow_tf32=torch.backends.cuda.matmul.allow_tf32,
         verified=True,
         model_parameters_updated=False,
         training_started=False,

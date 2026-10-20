@@ -1,5 +1,5 @@
 {
-  "schema": "ccrr-grayscale-r5-direct16-1",
+  "schema": "ccrr-grayscale-r5-direct16-a0-2",
   "scope": "development_only",
   "seed": 20261020,
   "batch_size": 16,
@@ -24,6 +24,9 @@
   "schedule": "phase_warmup_cosine_preserve_adam_moments",
   "precision_bits": 8,
   "fp32": true,
+  "cudnn_allow_tf32": true,
+  "matmul_allow_tf32": false,
+  "numeric_policy": "a0_compatible_float32_tensors_cudnn_tf32_allowed_matmul_tf32_disabled",
   "padding": "sender_invalid_constant_128_over_255",
   "precision_initialization": "copy_8bit_condition_to_4bit",
   "weights": {

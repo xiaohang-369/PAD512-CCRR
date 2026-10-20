@@ -178,13 +178,15 @@ def png_roundtrip(g, path):
     return loaded
 
 
-def verify(output, resources, step, device):
+def verify(output, resources, step, device, *, validation_batch_size=1):
     seed_all(CONFIG["seed"])
     teacher = load_teacher(resources, step, device)
     before = state_digest(teacher)
     data = PADData(resources["data_root"], "fit")
-    # Fixed fit image only; no held-out images used for this engineering check.
-    b = collate([data[0]], device)
+    # Match the cache extraction batch for cache equality, including gradient checks.
+    if not 1 <= validation_batch_size <= len(data):
+        raise ValueError("Invalid cache verification batch")
+    b = collate([data[i] for i in range(validation_batch_size)], device)
     manifest = read(FEATURES / "features.json")
     cached = torch.load(
         FEATURES / manifest["roles"]["fit"]["file"],
@@ -192,17 +194,24 @@ def verify(output, resources, step, device):
         weights_only=True,
     )
     assert cached["rows"] == data.rows
-    expected = cached["features"][0].clone()
-    coverage = cached["coverage"][0].clone()
+    expected = cached["features"][:validation_batch_size].clone()
+    coverage = cached["coverage"][:validation_batch_size].clone()
     del cached
-    result = dict(supervisor_step=step, fit_image_index=0, domains={})
+    result = dict(
+        supervisor_step=step,
+        fit_image_index=0,
+        cache_verification_batch_size=validation_batch_size,
+        cudnn_allow_tf32=torch.backends.cudnn.allow_tf32,
+        matmul_allow_tf32=torch.backends.cuda.matmul.allow_tf32,
+        domains={},
+    )
     for domain, image in enumerate((b["x"], gray(b["x"]))):
         generated = image.detach().clone().requires_grad_(True)
         with torch.no_grad():
             raw, v, _ = teacher.panderm(image, b["rect"])
-            assert torch.allclose(v.cpu()[0], coverage, atol=1e-7, rtol=0)
-            error = float((raw.cpu()[0] - expected[domain]).abs().max())
-            if not torch.allclose(raw.cpu()[0], expected[domain], atol=1e-4, rtol=1e-4):
+            assert torch.allclose(v.cpu(), coverage, atol=1e-7, rtol=0)
+            error = float((raw.cpu() - expected[:, domain]).abs().max())
+            if not torch.allclose(raw.cpu(), expected[:, domain], atol=1e-4, rtol=1e-4):
                 raise ValueError(
                     f"Live PanDerm differs from bound A0 features: {error}"
                 )
@@ -219,6 +228,8 @@ def verify(output, resources, step, device):
             deterministic=True,
             gradient_finite_nonzero=True,
         )
+    # Receiver serialization is intentionally single-image; it is not the A0 comparison.
+    b = collate([data[0]], device)
     model = GrayscaleSystem().to(device)
     model.train()
     teacher.train()
