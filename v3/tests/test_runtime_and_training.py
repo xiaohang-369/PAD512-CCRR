@@ -157,6 +157,9 @@ def test_targets_reject_wrong_row_order(tmp_path, cache):
 
 @pytest.mark.parametrize("variant", ["compression", "separation", "adversarial"])
 def test_finite_training_preserves_teachers_and_inputs(cfg, cache, tmp_path, variant):
+    for data in cache.values():
+        data["coverage"][:, :, 0] = 0
+        data["features"][:, :, :, 0] = 100
     teacher = ClinicalHeads(8)
     initial_teacher = deepcopy(teacher.state_dict())
     raw = cache["fit"]["features"].clone()
@@ -193,6 +196,11 @@ def test_finite_training_preserves_teachers_and_inputs(cfg, cache, tmp_path, var
     logits.square().mean().backward()
     assert x.grad.abs().sum() > 0
     assert all(p.grad is None for p in supervisor.parameters())
+    legacy = torch.load(tmp_path / "separator.pt", weights_only=True)
+    del legacy["spec"]["support_policy"]
+    runtime.save(tmp_path / "legacy.pt", legacy)
+    with pytest.raises(ValueError, match="Legacy"):
+        load_separator(tmp_path / "legacy.pt", "cpu")
 
 
 def test_independent_probe_and_attack_pipeline(cfg, cache, tmp_path):

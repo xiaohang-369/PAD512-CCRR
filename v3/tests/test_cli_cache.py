@@ -205,4 +205,46 @@ def test_cli_probe_then_independent_compression_artifact(
         ]
     )
     runtime.artifact(sep, "separator", resources)
+    link_report = root / "link_audit"
+    cli.main(
+        [
+            "link-audit",
+            *base,
+            "--separator",
+            str(sep),
+            "--targets",
+            str(targets),
+            "--output",
+            str(link_report),
+        ]
+    )
+    runtime.artifact(link_report, "link_audit", resources)
+    result = runtime.read(link_report / "link_audit.json")
+    assert set(result["roles"]) == {"val_tune", "val_select"}
+    assert result["model_parameters_updated"] is False
+    unrelated = root / "other_targets"
+    runtime.new_run(
+        resources,
+        unrelated,
+        "targets",
+        cfg,
+        {"features_sha256": runtime.digest(path / "features.json")},
+        {},
+    )
+    runtime.save(unrelated / "targets.pt", payload)
+    runtime.write(unrelated / "capability.json", {"synthetic_other_reference": True})
+    runtime.finish(unrelated, "link_targets", ["targets.pt", "capability.json"])
+    with pytest.raises(ValueError, match="bound teacher"):
+        cli.main(
+            [
+                "link-audit",
+                *base,
+                "--separator",
+                str(sep),
+                "--targets",
+                str(unrelated),
+                "--output",
+                str(root / "wrong_link_audit"),
+            ]
+        )
     assert {p.name: runtime.digest(p) for p in path.iterdir()} == hashes

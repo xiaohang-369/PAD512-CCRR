@@ -19,6 +19,10 @@
 
 残差块为Conv3/ReLU/Conv3加残差，无BN/dropout，是本适配的明确选择。内部取整为floor(x+0.5)，负半整数亦适用。推理Mask为二分类argmax，平局选semantic；生成训练可用软代理反向但保持硬、确定前向。共享GMM按通道参数、空间共享；完整Q与稠密Q_link全部有效位置均计码长，包括置零符号，分母不随Mask占用变化。
 
+2026-10-20审查修订：`support_policy=bounded_codes_v1`。标准化后的输入在`coverage=0`处置零；量化Q在这些位置置零，再送Mask和解码器。Q_sem/Q_link保持互补，Mask在无效位置为0；各解码入口再次屏蔽未计费位置。预热与联合训练共用`complete/encode/decode`路径。`coverage>0`控制二值支持域，分数coverage只用于原有损失／池化权重，不衰减部分覆盖特征。解码器内部卷积仍可经过支持域外，但输入只能来自受约束的码；不宣称逐层空间隔离、病灶保护或padding token不含信息。A0磁盘缓存和医学probe不变。
+
+GMM使用对称erfc尾差，保留原概率／尺度下界及触发统计；不是更换熵模型或真实通信预算。额外攻击器仅设置CPU默认生成器并恢复CPU状态，迁移设备不重新设置CUDA种子。缺少支持域版本的旧separator拒绝在新版加载，应使用其原release审计；旧probe/targets不因此失效。
+
 核心损失为完整特征MSE、单位化关联embedding距离、内部码长代理、疾病CE；完整特征重建不施加于semantic分支。冻结医学头和联合任务头不是隐式切换。额外对抗使用平衡BCE与均匀混淆，不叠加第二次GRL反号。
 
 ICCV分离与原文扩散联合训练不同；本实现的显式医学目标只对应指定六分类。不是官方DCM-DeID完整复现，也不是MaMI复现。参考：[ICCV论文](https://openaccess.thecvf.com/content/ICCV2025/html/Tian_Semantic_versus_Identity_A_Divide-and-Conquer_Approach_towards_Adjustable_Medical_Image_ICCV_2025_paper.html)。
@@ -55,6 +59,7 @@ ICCV分离与原文扩散联合训练不同；本实现的显式医学目标只�
 | `train` | `--features --heads --targets --reference-review --variant separation/adversarial --output` | 登记后的分离或额外对抗开发实验 |
 | `audit` | `--features --view raw --output` | 原始表征独立读出与P2攻击 |
 | `audit` | `--features --separator --view full/semantic/q_sem/q_link --output` | 冻结表示后重新拟合；compression无q_link |
+| `link-audit` | `--features --separator --targets --output` | 无更新，直接比较教师、D_link输出和固定fit均值的P2与单位化重建误差；targets必须是该separator绑定的教师 |
 | `compare` | `--before <audit> --after <audit> --output` | 匹配临床及关联差值区间，仍不自动颁发通过 |
 
 训练所需的`reference-review`见样例：需绑定已审阅targets的artifact.json摘要，三方向都明确记录，决定为`allow_development_reference`并写出依据。它只是允许该候选进入开发比较的记录，不是正式教师通过证书；不得无视初始化／困难负例／有效性证据直接批量生成。旧V2已训练ReID不能通过`--reference`静默导入。
@@ -71,6 +76,10 @@ pair-AUROC按查询患者及每查询正负集合平衡；区间是**给定固�
 
 P3当前仅普通灰度NCC基线，未实现生成图的P3训练或局部特征攻击全集；其高匹配率不是不可行性证明。监督器灰度接口虽有输入梯度测试，真实PanDerm—生成像素链路尚待服务器检查。未提供任何“自动晋升合格监督包”功能。
 
+P3主报告`p3_baseline.json`仅对完整公开画布居中／单位化；`p3_source_support_auxiliary.json`另外读取源V，明确标记已知有效区辅助条件。两者均为同一确定灰度变换的自来源匹配，不能用于不同的生成查询／图库。攻击者是否可获取或推断V需另登记，不从接收端契约推定。
+
+`link-audit`仅评价val_tune/val_select患者，均值只从fit单位化教师embedding按域计算，再按同一epsilon单位化。报告三方向固定正向cosine P2、Rank-1/mAP/AUROC、val_select查询患者区间，以及逐域单位化距离和近零范数计数；零向量形成平局，不冒充合格表示。它不拟合新攻击器，不替代semantic独立攻击或医学验收，val_select仍是开发数据。结果不自动触发后续训练。
+
 ## 6. 记录及工程验证
 
 每运行写`binding.json`、`events.jsonl`、`status.json`及带内容SHA的`artifact.json`。运行状态completed只表示完成预算，`scientific_acceptance=not_evaluated`不变。父资源／cache／模型的内容与来源绑定，禁止路径逃逸、错误阶段或不同特征来源。输出已存在即拒绝，不删除重跑。
@@ -78,3 +87,5 @@ P3当前仅普通灰度NCC基线，未实现生成图的P3训练或局部特征�
 separator.pt保存模型、头、fit统计、优化器和主要RNG状态供审计；当前**不支持恢复命令**，不能仅凭这些字段宣称精确续训。P2参照保存选中模型而非完整恢复状态。模型输出、配对明细和患者标识只留私有服务器，不提交Git。
 
 本地检查使用合成数据，可验证硬量化、互补Mask、GMM概率、输入梯度、冻结教师、三组短循环、P2／P3合法性、配对统计、hash防篡改、配置登记和输出隔离。合成更新是工程测试，不是PAD训练或科学结论。既有V2测试同时回归；实际结果以提交时实验记录为准。
+
+无需pytest的数值检查：设置本release的`PYTHONPATH=v3:v2:src`后，使用既有解释器运行`python -B -m ccrr_v3.numerical_check --device cpu`。服务器仅暴露指定物理卡3的UUID后，用`--device cuda:0`同时检查CPU与该卡：支持域扰动、尾概率／梯度、攻击器RNG及特征级冻结监督。只构造合成小网络、做反向，无optimizer.step、不加载真实数据或权重、不保存模型。更完整回归可设置`CCRR_TEST_DEVICE=cuda:0`运行`v3/tests/test_revision_regressions.py`，要求pytest已存在，不自动安装依赖。真实PanDerm像素链和科研准入仍待独立验证。

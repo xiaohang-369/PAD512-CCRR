@@ -85,6 +85,14 @@ def represent(cache, model, view, device):
     return result
 
 
+def initialize_attacker(channels, seed, device):
+    # CPU module construction only: torch.manual_seed would also reset CUDA/MPS.
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(seed)
+        attack = PairAttacker(channels)
+    return attack.to(device)
+
+
 def train(cache, targets, teacher_heads, statistics, cfg, output, device, variant):
     seed_all(cfg["seed"])
     fit = cache["fit"]
@@ -114,9 +122,9 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
     attack = attack_opt = sampler = None
     if variant == "adversarial":
         # Keep model/dropout/Gumbel RNG unchanged merely by constructing the extra head.
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(cfg["seed"] + 200)
-            attack = PairAttacker(fit["features"].shape[2]).to(device)
+        attack = initialize_attacker(
+            fit["features"].shape[2], cfg["seed"] + 200, device
+        )
         attack_opt = torch.optim.Adam(attack.parameters(), lr=cfg["attack_lr"])
         sampler = P2Sampler(fit["rows"])
 
@@ -162,10 +170,7 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
             x, v, y = batch(fit, idx, d, device)
             if not joint:
                 # Do not run the untrained mask/link branch during complete-code pretraining.
-                from .models import quantize
-
-                q = quantize(model.encoder(x))
-                result = dict(q=q, full=model.decoder(q))
+                result = model.complete(x, v)
                 reconstruction = weighted_mean((result["full"] - x).square(), v)
                 rate, diagnostic = model.rate(result, v)
                 value = (
@@ -302,6 +307,8 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
 
 def load_separator(path, device):
     obj = torch.load(path, map_location="cpu", weights_only=True)
+    if obj["spec"].get("support_policy") != "bounded_codes_v1":
+        raise ValueError("Legacy separator support policy; use its original release")
     model = Separator(**obj["spec"]).to(device)
     model.load_state_dict(obj["model"], strict=True)
     heads = ClinicalHeads(obj["spec"]["input_channels"]).to(device)

@@ -33,6 +33,7 @@ def parser():
             "p3-baseline",
             "train",
             "audit",
+            "link-audit",
             "compare",
         ),
     )
@@ -76,6 +77,7 @@ def validate_arguments(args):
         "targets": ("features",),
         "train": ("features", "heads", "variant"),
         "audit": ("features", "view"),
+        "link-audit": ("features", "separator", "targets"),
         "compare": ("before", "after"),
         "preflight": (),
         "p3-baseline": (),
@@ -86,6 +88,7 @@ def validate_arguments(args):
         "targets": {"features", "reference"},
         "train": {"features", "heads", "variant", "targets", "reference_review"},
         "audit": {"features", "view", "separator"},
+        "link-audit": {"features", "separator", "targets"},
         "compare": {"before", "after"},
         "preflight": {"features"},
         "p3-baseline": set(),
@@ -269,7 +272,11 @@ def main(argv=None):
             from .p3 import run
 
             run(resources, cfg, output)
-            finish(output, "p3_baseline", ["p3_baseline.json"])
+            finish(
+                output,
+                "p3_baseline",
+                ["p3_baseline.json", "p3_source_support_auxiliary.json"],
+            )
         elif args.stage == "reid":
             from .reid import train as train_reid
 
@@ -361,6 +368,34 @@ def main(argv=None):
                     p3_evaluated=False,
                     lesions_evaluated=False,
                 )
+            elif args.stage == "link-audit":
+                from .link_audit import run as audit_link
+
+                model, _, bound_stats = load_separator(
+                    Path(args.separator) / "separator.pt", device
+                )
+                if any(
+                    not torch.equal(bound_stats[k].cpu(), stats[k].cpu())
+                    for k in ("mean", "std")
+                ):
+                    raise ValueError("Separator statistics differ from A0")
+                _, binding = artifact(args.separator)
+                if (
+                    binding["parents"].get("targets_sha256")
+                    != parents["targets_sha256"]
+                ):
+                    raise ValueError(
+                        "Link audit requires the separator's bound teacher"
+                    )
+                audit_link(
+                    cache,
+                    load_targets(Path(args.targets), cache),
+                    model,
+                    cfg,
+                    output,
+                    device,
+                )
+                finish(output, "link_audit", ["link_audit.json"])
         # Bind immutable parent inputs again after execution, including explicit review.
         for key, value in parents.items():
             if key.endswith("_sha256"):

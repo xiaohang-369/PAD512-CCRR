@@ -1,5 +1,7 @@
 """ICCV-inspired feature separation. These codes are NOT transmitted q_C."""
 
+import math
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -27,6 +29,20 @@ def quantize(x):
     # Defined tie rule: floor(x+0.5), including negative half-integers.
     hard = torch.floor(x + 0.5)
     return x + (hard - x).detach()
+
+
+def supported(x, coverage):
+    """Binary support for information flow; fractional coverage is only a weight."""
+    if coverage.shape != (x.shape[0], 1, *x.shape[2:]):
+        raise ValueError("Coverage shape does not match representation")
+    if (
+        not torch.isfinite(coverage).all()
+        or (coverage < 0).any()
+        or (coverage > 1).any()
+        or (coverage.sum((1, 2, 3)) <= 0).any()
+    ):
+        raise ValueError("Invalid or empty coverage")
+    return torch.where(coverage > 0, x, torch.zeros_like(x))
 
 
 class Residual(nn.Module):
@@ -63,11 +79,15 @@ class GaussianMixture(nn.Module):
         scale = F.softplus(self.raw_scales) + self.min_scale
         centered = q.unsqueeze(2) - self.means
         lo, hi = (centered - 0.5) / scale, (centered + 0.5) / scale
-        # Survival-function difference on positive tails avoids 1 - 1 cancellation.
-        mass = torch.where(
-            lo >= 0,
-            torch.special.ndtr(-lo) - torch.special.ndtr(-hi),
-            torch.special.ndtr(hi) - torch.special.ndtr(lo),
+        # ndtr itself uses 1+erf in torch 2.6 and loses small negative tails.
+        # Use erfc on the small tail on either side; preserve the declared floor.
+        mass = (
+            torch.where(
+                lo >= 0,
+                torch.erfc(lo / math.sqrt(2)) - torch.erfc(hi / math.sqrt(2)),
+                torch.erfc(-hi / math.sqrt(2)) - torch.erfc(-lo / math.sqrt(2)),
+            )
+            * 0.5
         )
         probability = (self.logits.softmax(2) * mass).sum(2)
         clipped = probability < self.min_probability
@@ -85,10 +105,13 @@ class Separator(nn.Module):
         min_scale=0.05,
         min_probability=1e-9,
         variant="separation",
+        support_policy="bounded_codes_v1",
     ):
         super().__init__()
         if variant not in ("compression", "separation", "adversarial"):
             raise ValueError("Unknown independently trained variant")
+        if support_policy != "bounded_codes_v1":
+            raise ValueError("Unsupported separator support policy")
         self.variant = variant
         self.spec = dict(
             input_channels=input_channels,
@@ -98,6 +121,7 @@ class Separator(nn.Module):
             min_scale=min_scale,
             min_probability=min_probability,
             variant=variant,
+            support_policy=support_policy,
         )
         self.encoder = nn.Sequential(
             nn.Conv2d(input_channels, width, 1),
@@ -118,14 +142,29 @@ class Separator(nn.Module):
             )
             self.link_head = nn.Linear(width, embedding_dim)
 
+    def encode(self, features, coverage):
+        return supported(
+            quantize(self.encoder(supported(features, coverage))), coverage
+        )
+
+    def decode(self, code, coverage):
+        # Internal activations may extend outside support, but depend only on
+        # the bounded code. They do not receive an extra uncharged input stream.
+        return self.decoder(supported(code, coverage))
+
+    def complete(self, features, coverage):
+        """Shared complete-code path for warmup and every independently trained arm."""
+        q = self.encode(features, coverage)
+        return dict(q=q, full=self.decode(q, coverage))
+
     def forward(self, features, coverage, temperature=1.0, stochastic=None):
         if temperature <= 0:
             raise ValueError("Mask temperature must be positive")
         stochastic = self.training if stochastic is None else stochastic
         if not self.training and stochastic:
             raise ValueError("Evaluation must use deterministic hard masks")
-        q = quantize(self.encoder(features))
-        fhat = self.decoder(q)
+        complete = self.complete(features, coverage)
+        q, fhat = complete["q"], complete["full"]
         if self.variant == "compression":
             return dict(q=q, q_sem=q, semantic=fhat, full=fhat)
         n, c, h, w = q.shape
@@ -137,6 +176,7 @@ class Separator(nn.Module):
             soft = (logits / temperature).softmax(2)[:, :, 1]
             hard = (logits.argmax(2) == 1).to(q.dtype)
             mask = soft + (hard - soft).detach()
+        mask = supported(mask, coverage)
         q_link, q_sem = q * mask, q * (1 - mask)
         return dict(
             q=q,
@@ -144,8 +184,10 @@ class Separator(nn.Module):
             q_link=q_link,
             q_sem=q_sem,
             full=fhat,
-            semantic=self.decoder(q_sem),
-            embedding=self.link_head(pool(self.link_decoder(q_link), coverage)),
+            semantic=self.decode(q_sem, coverage),
+            embedding=self.link_head(
+                pool(self.link_decoder(supported(q_link, coverage)), coverage)
+            ),
         )
 
     def rate(self, output, coverage):
