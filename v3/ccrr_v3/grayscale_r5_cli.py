@@ -36,7 +36,7 @@ from .runtime import (
 )
 from .dev2 import ROOT, current_commit, check_hashes
 
-PLAN = ROOT / "plans/grayscale-r5-direct16-a0-20261020"
+PLAN = ROOT / "plans/grayscale-r5-direct16-steps-20261020"
 
 
 def registration():
@@ -180,15 +180,20 @@ def checked_verification(path, reg, step):
 
 def plan(args, reg):
     report = checked_verification(args.verification, reg, args.supervisor_step)
-    if not all(
-        math.isfinite(x) and x > 0 for x in (args.wall_hours, args.checkpoint_gib)
+    if args.steps_only:
+        if args.wall_hours is not None or args.checkpoint_gib is not None:
+            raise ValueError("steps-only cannot be combined with resource ceilings")
+    elif not all(
+        x is not None and math.isfinite(x) and x > 0
+        for x in (args.wall_hours, args.checkpoint_gib)
     ):
-        raise ValueError("Register finite positive resource ceilings")
+        raise ValueError("Use steps-only or finite positive resource ceilings")
     now = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     path = PLAN / f"budget-s{args.supervisor_step}-{args.variant}-{now}.json"
     learned = args.variant == "learned"
     budget = dict(
-        schema="r5-budget-1",
+        schema="r5-budget-2",
+        resource_policy="steps_only" if args.steps_only else "bounded",
         source_commit=reg["source_commit"],
         config=CONFIG,
         parents=base_parents(reg),
@@ -196,8 +201,8 @@ def plan(args, reg):
         variant=args.variant,
         verification=str(Path(args.verification).resolve()),
         verification_sha256=digest(Path(args.verification) / "artifact.json"),
-        wall_seconds=args.wall_hours * 3600,
-        checkpoint_bytes=int(args.checkpoint_gib * 2**30),
+        wall_seconds=None if args.steps_only else args.wall_hours * 3600,
+        checkpoint_bytes=None if args.steps_only else int(args.checkpoint_gib * 2**30),
         max_optimizer_attempts=CONFIG["baseline_updates"]
         + CONFIG["c1_cycles"] * (2 if learned else 1),
         max_sampled_positions=(CONFIG["baseline_updates"] + CONFIG["c1_cycles"]) * 16,
@@ -205,7 +210,7 @@ def plan(args, reg):
         full_config=CONFIG,
         measured_verification=report,
         automatic_training=False,
-        note="Ceilings include resumed lineage and discarded work; reaching a ceiling stops, never extends.",
+        note="Step counts remain fixed. Null resource ceilings disable wall/storage stops; costs are still recorded.",
     )
     atomic_json(path, budget)
     print("R5_BUDGET:", path, "training_started=False", flush=True)
@@ -225,6 +230,29 @@ def run_lock(run):
             yield
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def wall_reached(elapsed, budget):
+    limit = budget["wall_seconds"]
+    return limit is not None and elapsed >= limit
+
+
+def valid_resource_policy(budget):
+    if budget.get("schema") != "r5-budget-2":
+        return False
+    wall, storage = budget.get("wall_seconds"), budget.get("checkpoint_bytes")
+    if budget.get("resource_policy") == "steps_only":
+        return wall is None and storage is None
+    return (
+        budget.get("resource_policy") == "bounded"
+        and isinstance(wall, (float, int))
+        and not isinstance(wall, bool)
+        and math.isfinite(wall)
+        and wall > 0
+        and isinstance(storage, int)
+        and not isinstance(storage, bool)
+        and storage > 0
+    )
 
 
 class StorageCeiling(Exception):
@@ -391,7 +419,7 @@ def run_training(
             account_wall()
             phase, cycle, _ = engine.phase_at(engine.position + 1)
             next_updates = 2 if phase == "c1" and variant == "learned" else 1
-            if engine.elapsed_seconds >= budget["wall_seconds"]:
+            if wall_reached(engine.elapsed_seconds, budget):
                 stop_reason = "wall_ceiling"
                 break
             if (
@@ -433,14 +461,14 @@ def run_training(
             operator_stop = (
                 output / "STOP_AFTER_CHECKPOINT"
             ).exists() and checkpoint_due
-            if checkpoint_due or engine.elapsed_seconds >= budget["wall_seconds"]:
+            if checkpoint_due or wall_reached(engine.elapsed_seconds, budget):
                 atomic_json(
                     output / "cost.json",
                     cost_record(engine, used_bytes, sampled_attempts, True),
                 )
                 label = f"{phase}-{cycle:06d}"
                 diagnostics = []
-                if engine.elapsed_seconds < budget["wall_seconds"]:
+                if not wall_reached(engine.elapsed_seconds, budget):
                     diagnostics = diagnose(engine, tune, output, label)
                     payload.extend(diagnostics)
                     account_wall()
@@ -470,7 +498,10 @@ def run_training(
                     position=engine.position,
                     selected=False,
                 )
-                if used_bytes >= budget["checkpoint_bytes"]:
+                if (
+                    budget["checkpoint_bytes"] is not None
+                    and used_bytes >= budget["checkpoint_bytes"]
+                ):
                     stop_reason = "checkpoint_storage_ceiling"
                     break
                 if operator_stop:
@@ -556,6 +587,11 @@ def main(argv=None):
     parser.add_argument("--verification")
     parser.add_argument("--wall-hours", type=float)
     parser.add_argument("--checkpoint-gib", type=float)
+    parser.add_argument(
+        "--steps-only",
+        action="store_true",
+        help="No wall-time or checkpoint-storage limit; stop at configured step counts",
+    )
     parser.add_argument("--budget")
     parser.add_argument("--checkpoint")
     parser.add_argument("--run")
@@ -568,13 +604,12 @@ def main(argv=None):
         return report_run(args.run)
     reg = registration()
     if args.action == "plan":
-        if (
-            not args.verification
-            or args.wall_hours is None
-            or args.checkpoint_gib is None
+        if not args.verification or (
+            not args.steps_only
+            and (args.wall_hours is None or args.checkpoint_gib is None)
         ):
             parser.error(
-                "plan requires verification and explicit wall/storage ceilings"
+                "plan requires verification and --steps-only or explicit wall/storage ceilings"
             )
         return plan(args, reg)
     parents = base_parents(reg)
@@ -595,10 +630,7 @@ def main(argv=None):
         ):
             raise ValueError("Budget does not match this experiment")
         if (
-            budget["schema"] != "r5-budget-1"
-            or not math.isfinite(budget["wall_seconds"])
-            or budget["wall_seconds"] <= 0
-            or budget["checkpoint_bytes"] <= 0
+            not valid_resource_policy(budget)
             or budget["max_optimizer_attempts"]
             != CONFIG["baseline_updates"]
             + CONFIG["c1_cycles"] * (2 if args.variant == "learned" else 1)

@@ -183,9 +183,10 @@ def test_snapshot_atomic_roundtrip_tamper_stale_and_storage_limit(tmp_path):
         cli.read_checkpoint(newpath, budget, reg)
 
 
+@pytest.mark.parametrize("steps_only", [False, True])
 @pytest.mark.parametrize("variant,updates", [("learned", 5), ("fixed_gray", 3)])
 def test_full_b_c1_diagnostic_loop_real_models_direct16(
-    monkeypatch, tmp_path, variant, updates
+    monkeypatch, tmp_path, variant, updates, steps_only
 ):
     cfg = config()
     monkeypatch.setattr(cli, "CONFIG", cfg)
@@ -194,8 +195,8 @@ def test_full_b_c1_diagnostic_loop_real_models_direct16(
     monkeypatch.setattr(cli, "PADData", SyntheticData)
     r5.atomic_json(tmp_path / "binding.json", {"test": "synthetic"})
     budget = dict(
-        wall_seconds=3600,
-        checkpoint_bytes=2**30,
+        wall_seconds=None if steps_only else 3600,
+        checkpoint_bytes=None if steps_only else 2**30,
         max_optimizer_attempts=updates,
         max_sampled_positions=48,
     )
@@ -462,3 +463,41 @@ def test_engine_overrides_prior_tf32_switch_to_bound_a0_policy(monkeypatch):
     )
     e.cycle()
     assert torch.backends.cudnn.allow_tf32 and not torch.backends.cuda.matmul.allow_tf32
+
+
+def test_steps_only_plan_and_resource_policy(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cli, "PLAN", tmp_path)
+    monkeypatch.setattr(cli, "checked_verification", lambda *a: {"verified": True})
+    monkeypatch.setattr(cli, "base_parents", lambda *a: {})
+    monkeypatch.setattr(cli, "digest", lambda *a: "test-hash")
+    args = SimpleNamespace(
+        verification=str(tmp_path),
+        supervisor_step=8500,
+        variant="learned",
+        steps_only=True,
+        wall_hours=None,
+        checkpoint_gib=None,
+    )
+    path = cli.plan(args, {"source_commit": "test"})
+    budget = read(path)
+    assert cli.valid_resource_policy(budget)
+    assert budget["wall_seconds"] is None and budget["checkpoint_bytes"] is None
+    assert not cli.wall_reached(1e30, budget)
+    assert budget["max_optimizer_attempts"] == 22000
+    assert budget["max_sampled_positions"] == 192000
+    assert not cli.valid_resource_policy({**budget, "checkpoint_bytes": 10})
+    args.wall_hours = 24
+    with pytest.raises(ValueError, match="cannot be combined"):
+        cli.plan(args, {"source_commit": "test"})
+    bounded = {
+        **budget,
+        "resource_policy": "bounded",
+        "wall_seconds": 3600,
+        "checkpoint_bytes": 1024,
+    }
+    assert cli.valid_resource_policy(bounded)
+    assert cli.wall_reached(3600, bounded)
+    for value in (None, float("inf"), float("nan"), -1, True):
+        assert not cli.valid_resource_policy({**bounded, "wall_seconds": value})

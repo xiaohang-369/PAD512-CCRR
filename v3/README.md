@@ -198,3 +198,13 @@ float32张量、cuDNN TF32允许、matmul TF32禁用，无autocast，无低精�
 并不声称每个卷积一定用了TF32，也不承诺跨batch输出逐bit一致。
 新计划目录为plans/grayscale-r5-direct16-a0-20261020；旧登记、失败run与旧release全部保留。
 R5仍为直接batch16，无累积、不启动训练；新版本真实完整verify必须重新回传后才能算通过。
+
+### R5 按步数完成训练（用户修订）
+
+新登记目录为 `plans/grayscale-r5-direct16-steps-20261020`。
+`plan --verification <run> --steps-only` 明确登记 `resource_policy=steps_only`，
+`wall_seconds=null` 和 `checkpoint_bytes=null`：不因墙钟或检查点累计空间停止。
+不是用极大数值伪装无限制。正常从头训练按 B2000＋C1 10000 完成，
+仍记录实际资源使用，每250保存/诊断，网络、batch16、学习率及损失不变。
+真实I/O、CUDA等运行错误仍报告失败；人工停止仍有效。旧限额run不原地改预算。
+8500主实验重启从相同登记初始化开始，不读取旧训练checkpoint；旧文件保留。
