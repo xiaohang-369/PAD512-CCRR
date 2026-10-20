@@ -12,7 +12,27 @@ from .models import Separator, ClinicalHeads, freeze, weighted_mean
 from .data import batch, pair_batch
 from .pairs import P2Sampler
 from .evaluation import weights_for, clinical_report
-from .runtime import seed_all, log, save, write
+from .runtime import seed_all, log, save, write, read
+
+
+def temperature_at(cfg, step):
+    decay = cfg.get("temperature_decay_steps", cfg["joint_steps"])
+    progress = min(1.0, max(0.0, (step - cfg["warmup_steps"] - 1) / max(1, decay - 1)))
+    return cfg["temperature_start"] * (
+        cfg["temperature_end"] / cfg["temperature_start"]
+    ) ** progress
+
+
+def checkpoint_path(directory, step=None):
+    """Called only after the enclosing separator artifact has been verified."""
+    if step is None:
+        return directory / "separator.pt"
+    index = read(directory / "checkpoints.json")
+    matches = [x for x in index["checkpoints"] if x["step"] == step]
+    expected = f"separator-step-{step:06d}.pt"
+    if len(matches) != 1 or matches[0]["file"] != expected:
+        raise ValueError("Requested checkpoint is not registered in this run")
+    return directory / expected
 
 
 def core_objective(
@@ -143,6 +163,32 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
         attack_opt.step()
 
     total = cfg["warmup_steps"] + cfg["joint_steps"]
+    snapshot_steps = set(cfg.get("checkpoint_steps", []))
+    checkpoints = []
+    stopped = False
+
+    def snapshot(step, endpoint):
+        state = dict(
+            model={k: v.detach().cpu() for k, v in model.state_dict().items()},
+            spec=model.spec,
+            heads={k: v.detach().cpu() for k, v in heads.state_dict().items()},
+            statistics=statistics,
+            optimizer=opt.state_dict(),
+            step=step,
+            config=cfg,
+            torch_rng=torch.get_rng_state(),
+            medical_rng=medical_rng.bit_generator.state,
+            attack_rng=attack_rng.bit_generator.state,
+            endpoint=endpoint,
+            medical_seen=torch.from_numpy(medical_seen.copy()),
+            resume_supported=False,
+        )
+        if torch.cuda.is_available():
+            state["cuda_rng"] = torch.cuda.get_rng_state_all()
+        if attack is not None:
+            state.update(attack=attack.state_dict(), attack_optimizer=attack_opt.state_dict())
+        return state
+
     for step in range(1, total + 1):
         joint = step > cfg["warmup_steps"]
         if variant == "adversarial" and step == cfg["warmup_steps"] + 1:
@@ -155,13 +201,7 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
             for _ in range(2):
                 attack_update()
         model.train()
-        progress = max(
-            0.0, (step - cfg["warmup_steps"] - 1) / max(1, cfg["joint_steps"] - 1)
-        )
-        tau = (
-            cfg["temperature_start"]
-            * (cfg["temperature_end"] / cfg["temperature_start"]) ** progress
-        )
+        tau = temperature_at(cfg, step)
         idx = medical_rng.integers(len(fit["rows"]), size=cfg["batch_size"])
         np.add.at(medical_seen, idx, 1)
         opt.zero_grad(set_to_none=True)
@@ -221,7 +261,7 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
             error_if_nonfinite=True,
         )
         opt.step()
-        if step % cfg["evaluate_every"] == 0 or step in (cfg["warmup_steps"], total):
+        if step % cfg["evaluate_every"] == 0 or step in (cfg["warmup_steps"], total) or step in snapshot_steps:
             log(
                 output,
                 "separator_update",
@@ -247,15 +287,16 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
                     scope="last_sampled_gray_batch_not_full_dataset",
                 )
             diagnostics = {}
+            medical_diagnostics = {}
             for view in ("full", "semantic"):
                 projected = represent(
                     {"val_tune": cache["val_tune"]}, model, view, device
                 )
-                diagnostics[view] = {
-                    d: r["macro_auroc"]
-                    for d, r in clinical_report(
-                        heads, projected["val_tune"], device
-                    ).items()
+                reports = clinical_report(heads, projected["val_tune"], device)
+                diagnostics[view] = {d: r["macro_auroc"] for d, r in reports.items()}
+                medical_diagnostics[view] = {
+                    d: {k: r[k] for k in ("macro_auroc", "macro_f1", "recall", "class_n")}
+                    for d, r in reports.items()
                 }
             log(
                 output,
@@ -263,34 +304,38 @@ def train(cache, targets, teacher_heads, statistics, cfg, output, device, varian
                 step=step,
                 head_mode=cfg["head_mode"],
                 domains=diagnostics,
+                clinical=medical_diagnostics,
+                role="val_tune",
             )
-    state = dict(
-        model={k: v.detach().cpu() for k, v in model.state_dict().items()},
-        spec=model.spec,
-        heads={k: v.detach().cpu() for k, v in heads.state_dict().items()},
-        statistics=statistics,
-        optimizer=opt.state_dict(),
-        step=total,
-        config=cfg,
-        torch_rng=torch.get_rng_state(),
-        medical_rng=medical_rng.bit_generator.state,
-        attack_rng=attack_rng.bit_generator.state,
-        endpoint="fixed_budget_not_acceptance",
+        if step in snapshot_steps:
+            name = f"separator-step-{step:06d}.pt"
+            save(output / name, snapshot(step, "candidate_not_selected"))
+            checkpoints.append(dict(step=step, file=name, clinical=medical_diagnostics))
+            write(output / "checkpoints.json", dict(checkpoints=checkpoints, maximum_steps=total))
+            log(output, "checkpoint_saved", step=step, file=name, selected=False)
+            # Explicit operator stop only, never infer convergence from a frozen head.
+            if (output / "STOP_AFTER_CHECKPOINT").exists():
+                stopped = True
+                log(output, "operator_stop_at_checkpoint", step=step)
+                break
+    save(
+        output / "separator.pt",
+        snapshot(step, "operator_stop_not_acceptance" if stopped else "fixed_budget_not_acceptance"),
     )
-    if torch.cuda.is_available():
-        state["cuda_rng"] = torch.cuda.get_rng_state_all()
-    if attack is not None:
-        state.update(
-            attack=attack.state_dict(), attack_optimizer=attack_opt.state_dict()
+    if snapshot_steps:
+        write(
+            output / "checkpoints.json",
+            dict(checkpoints=checkpoints, maximum_steps=total, actual_steps=step,
+                 stop_reason="operator_request" if stopped else "maximum_budget"),
         )
-    save(output / "separator.pt", state)
     write(
         output / "training_summary.json",
         dict(
             variant=variant,
-            steps=total,
+            steps=step,
+            maximum_steps=total,
             head_mode=cfg["head_mode"],
-            endpoint="fixed_budget",
+            endpoint="operator_stop" if stopped else "fixed_budget",
             scientific_acceptance="requires_independent_audit",
             pair_fallbacks=sampler.fallbacks if sampler else 0,
             medical_images_seen=int((medical_seen > 0).sum()),

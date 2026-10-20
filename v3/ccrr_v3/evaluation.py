@@ -233,7 +233,7 @@ def attack_report(model, data, device, orientations=None, repetitions=0):
     return result
 
 
-def fit_attack(cache, cfg, output, device, spatial=False):
+def fit_attack(cache, cfg, output, device, spatial=False, evaluation_role="val_select"):
     seed_all(cfg["seed"] + 100)
     fit = cache["fit"]
     model = PairAttacker(fit["features"].shape[2], spatial).to(device)
@@ -278,11 +278,13 @@ def fit_attack(cache, cfg, output, device, spatial=False):
         ),
     )
     return attack_report(
-        model, cache["val_select"], device, orientations, cfg["bootstrap_repetitions"]
+        model, cache[evaluation_role], device, orientations, cfg["bootstrap_repetitions"]
     )
 
 
-def audit(cache, cfg, output, device):
+def audit(cache, cfg, output, device, evaluation_role="val_select"):
+    if evaluation_role not in ("val_tune", "val_select"):
+        raise ValueError("Only development evaluation roles are allowed")
     for name, mlp in (("linear", False), ("mlp", True)):
         directory = output / name
         directory.mkdir()
@@ -290,12 +292,13 @@ def audit(cache, cfg, output, device):
         write(
             output / f"{name}.json",
             clinical_report(
-                heads, cache["val_select"], device, cfg["bootstrap_repetitions"]
+                heads, cache[evaluation_role], device, cfg["bootstrap_repetitions"]
             ),
         )
     for name, spatial in (("global", False), ("spatial", True)):
         directory = output / name
         directory.mkdir()
         write(
-            output / f"{name}.json", fit_attack(cache, cfg, directory, device, spatial)
+            output / f"{name}.json",
+            fit_attack(cache, cfg, directory, device, spatial, evaluation_role)
         )

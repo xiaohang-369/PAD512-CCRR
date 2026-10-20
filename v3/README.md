@@ -64,7 +64,7 @@ ICCV分离与原文扩散联合训练不同；本实现的显式医学目标只�
 
 训练所需的`reference-review`见样例：需绑定已审阅targets的artifact.json摘要，三方向都明确记录，决定为`allow_development_reference`并写出依据。它只是允许该候选进入开发比较的记录，不是正式教师通过证书；不得无视初始化／困难负例／有效性证据直接批量生成。旧V2已训练ReID不能通过`--reference`静默导入。
 
-`train`仅加载fit/val_tune特征；`probe/audit`另用val_select开发报告。数据完整性核验可读取test角色元数据，但不读取test像素／特征或使用test性能。val_select已有开发历史，不能称新的无偏终测。
+`train`仅加载fit/val_tune特征；`probe`及默认`audit`另用val_select开发报告。`audit --evaluation-role val_tune`只加载fit/val_tune，用于DEV2端点筛选。数据完整性核验可读取test角色元数据，但不读取test像素／特征或使用test性能。val_select已有开发历史，不能称新的无偏终测。
 
 ## 5. 评价解释与未闭合项
 
@@ -89,3 +89,17 @@ separator.pt保存模型、头、fit统计、优化器和主要RNG状态供审�
 本地检查使用合成数据，可验证硬量化、互补Mask、GMM概率、输入梯度、冻结教师、三组短循环、P2／P3合法性、配对统计、hash防篡改、配置登记和输出隔离。合成更新是工程测试，不是PAD训练或科学结论。既有V2测试同时回归；实际结果以提交时实验记录为准。
 
 无需pytest的数值检查：设置本release的`PYTHONPATH=v3:v2:src`后，使用既有解释器运行`python -B -m ccrr_v3.numerical_check --device cpu`。服务器仅暴露指定物理卡3的UUID后，用`--device cuda:0`同时检查CPU与该卡：支持域扰动、尾概率／梯度、攻击器RNG及特征级冻结监督。只构造合成小网络、做反向，无optimizer.step、不加载真实数据或权重、不保存模型。更完整回归可设置`CCRR_TEST_DEVICE=cuda:0`运行`v3/tests/test_revision_regressions.py`，要求pytest已存在，不自动安装依赖。真实PanDerm像素链和科研准入仍待独立验证。
+
+## 7. DEV2有限训练与checkpoint联合筛选
+
+用户2026-10-20选择保留当前2500步基线，另开同预算compression/separation，最多10000步，不预设严格医学门槛、不自动选冠军。配置可选字段`checkpoint_steps`声明保存端点，`temperature_decay_steps`将温度退火长度与总预算分开。旧配置行为不变。DEV2沿用500预热及2000联合步退火至0.5，之后保持0.5；固定学习率与原损失不变，不把延长退火造成的早期轨迹变化误当作训练时长效应。
+
+0—3000每250步、后续每500步保存，共26个端点／组。每步有放回采样16个图像位置，同一批分别计算RGB/灰度损失并平均，不能将图像位置累计量称为严格epoch或独立图像数。保存模型、头、统计、优化器及RNG供审计，仍不支持续训。训练不是自动早停：运行目录出现`STOP_AFTER_CHECKPOINT`文件时，在下一个登记端点保存并正常结束；日志标明实际步数和最大预算，停止的两组预算须对齐。不以冻结头的波动自动判定联合指标停滞。
+
+`python -m ccrr_v3.dev2 register`从已登记DEV1验证父文件并建立新的DEV2计划，不训练。随后显式`train compression`或`train separation`一次运行一组。默认固定当前2500步基线为可用实验候选；本轮优化不覆盖旧release或产物，也不自动进入生成训练。
+
+对各端点使用`python -m ccrr_v3.dev2 audit <variant> --separator <run> --step <saved-step>`。每次从fit重新拟合Linear/MLP各2000步和global/spatial各3000步，val_tune选评价器和攻击方向，再在val_tune报告筛选指标。它是带选点乐观性的开发评价，不是独立泛化终测。完整26×2个端点评价包含52轮审计，评价成本可能高于训练。一次只执行显式指定的端点，不静默跳过、复用不适配的攻击器或自动批量发起。
+
+`python -m ccrr_v3.selection --audits <matching-val_tune-audit-runs...> --output <new-V3-run>`验证同代码、训练／评价预算、同队列／图库、每组单一训练run及配对端点。44个目标为4项医学AUROC、4项macro-F1、24项逐类召回（均越高越好），6项保守双向攻击AUROC和6项Rank1（均越低越好）。保留各组及合并的全部经验Pareto集合，不宣称统计显著支配。默认每组展示最多2个覆盖权衡范围的代表，确定性规则为按步数的首个非支配点起始，然后对44维按候选范围归一化后做最远点选择；这只是展示抽样，不是加权得分或质量排序，完整前沿不丢弃。
+
+输出`candidates.json`、`metrics.csv`和可离线打开的`tradeoffs.html`，后者投影展示最弱医学AUROC与最强攻击AUROC并按步数连线，不代替全部F1／召回指标。固定有限候选后才单独安排val_select复核；当前包装入口不自动使用val_select，更不读取test表现。没有阈值时不写`passed`或自动决定正式监督器。真实曲线只能在服务器完成训练和端点评价后生成，本地合成检查不构成结果。

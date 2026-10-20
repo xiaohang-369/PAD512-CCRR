@@ -56,6 +56,9 @@ def parser():
         help="Explicit development reference decision, bound to targets artifact",
     )
     p.add_argument("--separator", help="Completed V3 separator run")
+    p.add_argument("--separator-step", type=int, help="Explicit saved candidate checkpoint")
+    p.add_argument("--evaluation-role", choices=("val_tune", "val_select"),
+                   help="Audit only; defaults to historical val_select")
     p.add_argument("--variant", choices=("compression", "separation", "adversarial"))
     p.add_argument("--view", choices=("raw", "full", "semantic", "q_sem", "q_link"))
     p.add_argument("--before", help="Completed baseline audit")
@@ -87,7 +90,7 @@ def validate_arguments(args):
         "reid": set(),
         "targets": {"features", "reference"},
         "train": {"features", "heads", "variant", "targets", "reference_review"},
-        "audit": {"features", "view", "separator"},
+        "audit": {"features", "view", "separator", "separator_step", "evaluation_role"},
         "link-audit": {"features", "separator", "targets"},
         "compare": {"before", "after"},
         "preflight": {"features"},
@@ -103,6 +106,8 @@ def validate_arguments(args):
         "reference",
         "reference_review",
         "separator",
+        "separator_step",
+        "evaluation_role",
         "variant",
         "view",
         "before",
@@ -125,6 +130,8 @@ def validate_arguments(args):
             )
     if args.stage == "audit" and bool(args.separator) != (args.view != "raw"):
         raise ValueError("Raw audit has no separator; all other views require one")
+    if args.separator_step is not None and (not args.separator or args.separator_step < 1):
+        raise ValueError("Positive --separator-step requires a separator")
     if args.stage == "preflight" and args.output:
         raise ValueError("Preflight is read-only")
 
@@ -229,11 +236,22 @@ def main(argv=None):
             reference_review=str(Path(args.reference_review).resolve()),
             reference_review_sha256=digest(args.reference_review),
         )
+    if args.separator_step is not None:
+        from .learning import checkpoint_path
+
+        path = checkpoint_path(Path(args.separator), args.separator_step)
+        manifest = read(Path(args.separator) / "artifact.json")
+        if path.name not in manifest["files"]:
+            raise ValueError("Checkpoint is not bound in separator artifact")
+        parents.update(separator_checkpoint=str(path.resolve()),
+                       separator_checkpoint_sha256=digest(path))
     if args.stage == "compare":
         _, ba = artifact(args.before)
         _, bb = artifact(args.after)
         if ba["parents"]["features_sha256"] != bb["parents"]["features_sha256"]:
             raise ValueError("Audit feature datasets differ")
+        if ba["options"].get("evaluation_role", "val_select") != bb["options"].get("evaluation_role", "val_select"):
+            raise ValueError("Audit evaluation roles differ")
         for key in (
             "probe_steps",
             "probe_lr",
@@ -260,6 +278,9 @@ def main(argv=None):
             view=args.view,
             workers=args.workers,
             device=str(device),
+            **({"separator_step": args.separator_step,
+                "evaluation_role": args.evaluation_role or "val_select"}
+               if args.stage == "audit" else {}),
         ),
     )
     try:
@@ -317,7 +338,7 @@ def main(argv=None):
         else:
             roles = (
                 ("fit", "val_tune")
-                if args.stage == "train"
+                if args.stage == "train" or (args.stage == "audit" and args.evaluation_role == "val_tune")
                 else ("fit", "val_tune", "val_select")
             )
             cache, stats = load_features(args.features, resources, roles)
@@ -347,7 +368,10 @@ def main(argv=None):
                 finish(
                     output,
                     "separator",
-                    ["separator.pt", "training_summary.json"],
+                    ["separator.pt", "training_summary.json"]
+                    + (["checkpoints.json"] + [
+                        x["file"] for x in read(output / "checkpoints.json")["checkpoints"]
+                    ] if cfg.get("checkpoint_steps") else []),
                     variant=args.variant,
                     supervision_admitted=False,
                 )
@@ -355,11 +379,13 @@ def main(argv=None):
                 from .evaluation import audit
 
                 if args.separator:
+                    from .learning import checkpoint_path
+
                     model, _, _ = load_separator(
-                        Path(args.separator) / "separator.pt", device
+                        checkpoint_path(Path(args.separator), args.separator_step), device
                     )
                     cache = represent(cache, model, args.view, device)
-                audit(cache, cfg, output, device)
+                audit(cache, cfg, output, device, args.evaluation_role or "val_select")
                 finish(
                     output,
                     "audit",
@@ -403,13 +429,13 @@ def main(argv=None):
                 path = Path(parents[name])
                 file = (
                     path
-                    if name == "reference_review"
+                    if name in ("reference_review", "separator_checkpoint")
                     else path
                     / ("features.json" if name == "features" else "artifact.json")
                 )
                 if digest(file) != value:
                     raise ValueError("Parent manifest/review changed during execution")
-                if name not in ("features", "reference_review"):
+                if name not in ("features", "reference_review", "separator_checkpoint"):
                     artifact(path, resources=resources)
                 elif name == "features":
                     manifest = read(file)

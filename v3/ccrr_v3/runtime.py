@@ -19,7 +19,11 @@ ROLES = ("fit", "val_tune", "val_select")
 
 def validate_config(cfg, registered=False):
     template = read(REPO / "v3/configs/development.example.json")
-    if set(cfg) != set(template) or cfg["schema"] != template["schema"]:
+    optional = {"checkpoint_steps", "temperature_decay_steps"}
+    if (
+        set(cfg) - optional != set(template)
+        or cfg["schema"] != template["schema"]
+    ):
         raise ValueError("Unknown/missing V3 configuration keys")
     if cfg["scope"] != "development_only" or cfg["registration_status"] not in (
         "draft",
@@ -75,6 +79,16 @@ def validate_config(cfg, registered=False):
             raise ValueError(f"Positive declared loss weight required: {k}")
     if cfg["head_mode"] not in ("frozen", "joint"):
         raise ValueError("Head-mode comparison must be explicitly registered")
+    decay = cfg.get("temperature_decay_steps", cfg["joint_steps"])
+    if type(decay) is not int or decay < 1:
+        raise ValueError("Invalid temperature_decay_steps")
+    steps = cfg.get("checkpoint_steps", [])
+    if (
+        not isinstance(steps, list)
+        or any(type(s) is not int or not 1 <= s <= cfg["warmup_steps"] + cfg["joint_steps"] for s in steps)
+        or steps != sorted(set(steps))
+    ):
+        raise ValueError("checkpoint_steps must be sorted unique positive in-budget steps")
 
 
 def validate_resources(resources, hashes=True):

@@ -92,6 +92,7 @@ def test_cache_tamper_and_patient_overlap_fail(a0):
 def test_cli_probe_then_independent_compression_artifact(
     cfg, a0, tmp_path, monkeypatch
 ):
+    cfg["checkpoint_steps"] = [1, 2, 3]
     path, resources = a0
     # Only external base weight/admission checks and git cleanliness are mocked.
     # Real A0 file hashing, tensor validation, loops, artifacts and parent checks run.
@@ -139,6 +140,25 @@ def test_cli_probe_then_independent_compression_artifact(
         runtime.read(train / "status.json")["scientific_acceptance"] == "not_evaluated"
     )
     assert {p.name: runtime.digest(p) for p in path.iterdir()} == hashes
+    # Real CLI candidate audit fits fresh evaluators without loading val_select.
+    original_load = torch.load
+    audit_loaded = []
+
+    def track_load(p, **kwargs):
+        audit_loaded.append(str(p))
+        return original_load(p, **kwargs)
+
+    monkeypatch.setattr(torch, "load", track_load)
+    tune_audit = root / "checkpoint-tune"
+    cli.main(["audit", *base, "--separator", str(train), "--separator-step", "2",
+              "--view", "full", "--evaluation-role", "val_tune", "--output", str(tune_audit)])
+    _, binding = runtime.artifact(tune_audit, "audit", resources)
+    assert binding["options"]["separator_step"] == 2
+    assert binding["options"]["evaluation_role"] == "val_tune"
+    assert any("separator-step-000002.pt" in p for p in audit_loaded)
+    assert not any("val_select.pt" in p or "test.pt" in p for p in audit_loaded)
+    for h in ("linear", "mlp"):
+        assert all(i.startswith("val_tune") for i in runtime.read(tune_audit / f"{h}.json")["rgb"]["ids"])
     with pytest.raises(FileExistsError):
         cli.main(
             [
@@ -205,6 +225,20 @@ def test_cli_probe_then_independent_compression_artifact(
         ]
     )
     runtime.artifact(sep, "separator", resources)
+    separation_tune = root / "separation-checkpoint-tune"
+    cli.main(["audit", *base, "--separator", str(sep), "--separator-step", "2",
+              "--view", "semantic", "--evaluation-role", "val_tune",
+              "--output", str(separation_tune)])
+    from ccrr_v3.selection import main as select_candidates
+
+    candidates = root / "candidates"
+    select_candidates(["--audits", str(tune_audit), str(separation_tune),
+                       "--output", str(candidates)])
+    runtime.artifact(candidates, "checkpoint_candidates", resources)
+    candidate_report = runtime.read(candidates / "candidates.json")
+    assert candidate_report["winner"] is None
+    assert len(candidate_report["candidates"]) == 2
+    assert len(candidate_report["objective_names"]) == 44
     link_report = root / "link_audit"
     cli.main(
         [
