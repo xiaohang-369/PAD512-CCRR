@@ -7,9 +7,10 @@
 | verify-cpu.json | 小尺寸CPU、来源/数字链/梯度工程验证 | 可执行 |
 | verify-server.json | 每张所选卡batch16、512，无optimizer | 可执行；须显式选择GPU |
 | probe-residual.json | 差值加密、基底恢复、PNG收发及容量拒绝诊断 | 可执行；纯CPU，无训练 |
+| workflow-v4.json | 用户明确的四阶段顺序、统一符号和阶段产物 | 设计配置；当前从第一阶段开始 |
 | resources.example.json | 已训练监督器、A0、数据资源的只读入口 | 历史路径示例；服务器校验后才确认 |
 | train-author-reference.json | 抄录固定作者源码90+30与损失/Adam设置 | 文献代码参考，不能当PAD训练配置执行 |
-| train-pad-design.json | PAD候选配置、冻结监督、全局batch16 | 未登记、未启用；未知参数为null |
+| train-pad-design.json | 第一阶段训练准备与后续设计入口；按作者参考batch8、256尺寸 | 未启用；未知参数为null |
 
 可复制配置到服务器独立V4目录后编辑，不需要改Python源码。`--config`指定文件；`--resources`替换资源入口。
 

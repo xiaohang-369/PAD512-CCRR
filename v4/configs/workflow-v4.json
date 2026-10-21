@@ -1,0 +1,54 @@
+{
+  "schema": "ccrr-v4-workflow-design-1",
+  "status": "design_not_training_cli",
+  "next_stage": "p1_original",
+  "protocol_fixture_counts_as_stage_completion": false,
+  "notation": {
+    "G0": "original_method_encoded_gray",
+    "G1": "supervision_improved_encoded_gray",
+    "Zc": "int16(Q8(G0))-int16(Q8(G1))",
+    "Gpub": "actual_embedded_published_gray",
+    "D0": "preserved_original_decoder",
+    "W": "adaptive_communication_encoder",
+    "R": "adaptive_communication_decoder"
+  },
+  "stages": [
+    {
+      "id": "p1_original",
+      "source_config": "train-author-reference.json",
+      "objective": "original_joint_ED_training_with_original_losses_stages_and_8bit_validation",
+      "extra_supervision": false,
+      "output": ["baseline_checkpoint", "G0", "original_recovery_evaluation"],
+      "state": "not_started"
+    },
+    {
+      "id": "p2_supervised",
+      "requires": "p1_original",
+      "init": "copy_p1_checkpoint_preserve_original_version",
+      "teacher_frozen": true,
+      "teacher_input_gradients": true,
+      "objective": "add_existing_supervision_to_original_task",
+      "compare": ["G1", "G0", "ordinary_gray"],
+      "criterion": "lower_identity_recognition_and_acceptable_medical_loss",
+      "loss_weights": null,
+      "state": "not_started"
+    },
+    {
+      "id": "p3_supervised_embedding",
+      "requires": "p2_supervised",
+      "payload": "encrypt_Zc_and_independent_records",
+      "objective": "adaptive_embedding_under_existing_supervision",
+      "compare": ["Gpub", "G1", "G0", "ordinary_gray"],
+      "criterion": "retain_identity_medical_tradeoff_after_embedding",
+      "state": "not_started"
+    },
+    {
+      "id": "p4_complete_recovery",
+      "requires": "p3_supervised_embedding",
+      "train": ["W", "R"],
+      "receiver": ["read_actual_Gpub", "extract_ciphertext_and_restore_G1", "authenticate_decrypt_Zc", "G0_hat=G1_hat+Zc_hat", "D0(normalize(G0_hat))"],
+      "recheck": "p3_identity_and_medical_metrics_after_WR_training",
+      "state": "not_started"
+    }
+  ]
+}
