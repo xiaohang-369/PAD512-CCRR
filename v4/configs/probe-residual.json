@@ -1,0 +1,7 @@
+{
+  "schema": "ccrr-v4-residual-probe-1",
+  "seed": 20261021,
+  "image_size": [512, 512],
+  "carrier_bits": 2,
+  "synthetic_record_bytes": 512
+}

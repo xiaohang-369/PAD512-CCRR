@@ -49,7 +49,7 @@ subprocess.run(
             source_commit=commit,
             branch=branch,
             author_commit="5dc2a0f7c6b692ca7914941745bd29b227ff4dbb",
-            scope="source_port_and_verification",
+            scope="source_port_and_residual_protocol_verification",
             training_enabled=False,
             server_execution="pending_user",
             scientific_acceptance="not_evaluated",
@@ -90,7 +90,7 @@ test "$(git -C "$V4_RELEASE" rev-parse HEAD)" = "$V4_COMMIT"
 test -z "$(git -C "$V4_RELEASE" status --porcelain)"
 export PYTHONPATH="$V4_RELEASE/v4:$V4_RELEASE/v3:$V4_RELEASE/v2:$V4_RELEASE/src"
 export PYTHONDONTWRITEBYTECODE=1
-"$V4_PYTHON" -B -c 'import sys,torch,numpy,PIL; from ccrr_v4.verify import source_check; print("PYTHON:",sys.executable); print("TORCH:",torch.__version__); print(source_check())'
+"$V4_PYTHON" -B -c 'import sys,torch,numpy,PIL,cryptography; from ccrr_v4.verify import source_check; from ccrr_v4 import residual_transport; print("PYTHON:",sys.executable); print("TORCH:",torch.__version__); print(source_check())'
 echo "V4_RELEASE: $V4_RELEASE"
 echo 'END_V4_INSTALL environment_modified=False training_started=False'
 """.replace("__COMMIT__", commit)
@@ -103,7 +103,20 @@ test "$(git -C "$V4_RELEASE" rev-parse HEAD)" = '__COMMIT__'
 exec bash "$V4_RELEASE/v4/scripts/run-verify.sh" --root "$V4_ROOT" "$@"
 """.replace("__COMMIT__", commit)
 (dest / "run-verify.sh").write_text(run)
-for name in ("install-code.sh", "run-verify.sh"):
+residual_run = r"""#!/usr/bin/env bash
+set -euo pipefail
+V4_ROOT=${V4_ROOT:-/data/zwc/zyh/PAD512-CCRR-V4}
+V4_PYTHON=${V4_PYTHON:-/home/zwc/anaconda3/envs/ccrr_v2/bin/python}
+V4_RELEASE="$V4_ROOT/releases/__COMMIT__"
+test "$(git -C "$V4_RELEASE" rev-parse HEAD)" = '__COMMIT__'
+test -z "$(git -C "$V4_RELEASE" status --porcelain)"
+export PYTHONPATH="$V4_RELEASE/v4:$V4_RELEASE/v3:$V4_RELEASE/v2:$V4_RELEASE/src"
+export PYTHONDONTWRITEBYTECODE=1
+V4_OUTPUT="$V4_ROOT/runs/residual.$(date +%Y%m%d-%H%M%S).$$.$RANDOM"
+exec "$V4_PYTHON" -B -m ccrr_v4.residual_probe --config "$V4_RELEASE/v4/configs/probe-residual.json" --output "$V4_OUTPUT" "$@"
+""".replace("__COMMIT__", commit)
+(dest / "run-residual-probe.sh").write_text(residual_run)
+for name in ("install-code.sh", "run-verify.sh", "run-residual-probe.sh"):
     (dest / name).chmod(0o755)
     subprocess.run(["bash", "-n", str(dest / name)], check=True)
 for name in (
@@ -112,9 +125,10 @@ for name in (
     "resources.example.json",
     "train-author-reference.json",
     "train-pad-design.json",
+    "probe-residual.json",
 ):
     (dest / name).write_bytes((repo / "v4/configs" / name).read_bytes())
-(dest / "README.txt").write_text(f"""V4原论文基础验证版，提交 {commit}
+(dest / "README.txt").write_text(f"""V4原论文基础与差值收发验证版，提交 {commit}
 本包没有训练入口。来源完整性、工程检查通过不等于医学/隐私或容量通过。
 
 1. 上传本压缩包到服务器自己的目录，解压并进入本目录。
@@ -124,6 +138,11 @@ for name in (
    可用 V4_ROOT 与 V4_PYTHON 环境变量指定自己的根目录和已有解释器。
 3. bash run-verify.sh --config "$PWD/verify-cpu.json"
    先回传CPU报告。下面GPU命令分开执行，不自动串联或训练。
+   本次新增的差值收发试验使用CPU即可：
+   bash run-residual-probe.sh --config "$PWD/probe-residual.json"
+   合成可压缩样本应重组成功，随机样本应明确容量拒绝；两者都不是医学结果。
+   如已有同一输入的实际编码图，可追加 --original-png /path/ref.png --public-png /path/public.png。
+   仅接受单通道8bit PNG。试验密钥仅驻内存、结束丢弃，此命令不是生产交付加密入口。
 4. 选择实际可用卡后：
    bash run-verify.sh --config "$PWD/verify-server.json" --gpus 0,2
    0,2只是示例，必须改成用户选定物理卡；也可只写一张，如2。
@@ -136,7 +155,8 @@ for name in (
 配置都在本包或release/v4/configs。可复制到自己的configs目录修改后--config指定，勿改固定release源码。
 train-author-reference.json是作者源码参考，train-pad-design.json是尚未登记的设计，两者都不能启动训练。
 未来训练全局batch和每卡batch分开；卡数不写死，不因增加卡自动倍增全局batch/学习率。
-当前未验证原VGG权重、未训练基线、未选择或实现公共/私有分解、未实现完整嵌入授权链。
+已选择原基线与学习公共灰度的整数差值；数字收发诊断使用确定的可逆载体，尚非自适应神经Writer。
+当前未验证原VGG权重、未训练同域基线或监督改进，未完成最终自适应嵌入授权系统。
 请回传V4_REPORT指向的report.json及终端失败信息（如有）；无需回传患者图像、预测明细或模型权重。
 """)
 hashes = {p.name: sha(p) for p in sorted(dest.iterdir()) if p.is_file()}

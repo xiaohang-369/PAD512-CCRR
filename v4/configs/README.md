@@ -6,6 +6,7 @@
 |---|---|---|
 | verify-cpu.json | 小尺寸CPU、来源/数字链/梯度工程验证 | 可执行 |
 | verify-server.json | 每张所选卡batch16、512，无optimizer | 可执行；须显式选择GPU |
+| probe-residual.json | 差值加密、基底恢复、PNG收发及容量拒绝诊断 | 可执行；纯CPU，无训练 |
 | resources.example.json | 已训练监督器、A0、数据资源的只读入口 | 历史路径示例；服务器校验后才确认 |
 | train-author-reference.json | 抄录固定作者源码90+30与损失/Adam设置 | 文献代码参考，不能当PAD训练配置执行 |
 | train-pad-design.json | PAD候选配置、冻结监督、全局batch16 | 未登记、未启用；未知参数为null |

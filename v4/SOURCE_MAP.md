@@ -5,6 +5,8 @@
 
 未来新增职责及其具体接入位置见[接口推导第5节](INTERFACE_DESIGN.md#5-每项新增职责怎样对应作者代码)；该表不表示这些模块已经实现。
 
+当前新增的`residual_transport.py`位于原数字灰度输出与原Decoder输入之间：计算两张学习灰度的int16差值，真实编码/加密/嵌入/提取后还原原uint8编码图。它是我们新增的协议实现，作者源码中没有对应模块；并未修改`encode`、`decode`或增加公共头。诊断载体与未来自适应Writer区别见[当前方案](RESIDUAL_PLAN.md)。
+
 | 原文件位置 | V4对应 | 核对点 |
 |---|---|---|
 | model.py:11–19 Conv2d | original.Conv / same_pad | 无bias，std=.02，TF SAME stride2偶数尺寸前0后1 |
