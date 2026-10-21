@@ -4,7 +4,7 @@
 
 | 文件 | 用途 | 可执行状态 |
 |---|---|---|
-| phase1-train.json | 原E/D、90＋30、完整损失、FP32、全局batch8 | 当前可执行的第一阶段训练配置 |
+| phase1-train.json | 原E/D、90＋30、完整损失、512×512、FP32、全局batch16 | 当前可执行的第一阶段训练配置 |
 | phase1-resources.json | 只读PAD入口、已核验VGG、独立缓存/输出目录 | 当前第一阶段资源配置 |
 | verify-cpu.json | 小尺寸CPU、来源/数字链/梯度工程验证 | 可执行 |
 | verify-server.json | 每张所选卡batch16、512，无optimizer | 可执行；须显式选择GPU |

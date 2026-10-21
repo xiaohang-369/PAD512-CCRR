@@ -1,23 +1,77 @@
 {
   "schema": "ccrr-v4-phase1-1",
-  "profile": "author-source-5dc2a0f",
+  "profile": "author-method-pad512-b16-1",
   "phase": 1,
   "seed": 20261021,
-  "image_size": 256,
-  "global_batch_size": 8,
-  "optimizer": {"name": "TF1Adam", "learning_rate": 0.0002, "betas": [0.9, 0.999], "epsilon": 1e-8},
-  "schedule": {"power": 0.9, "final_learning_rate": 0.000002, "decay_batches": "floor", "epoch_batches": "ceil", "shared_global_step": true, "reset_adam_at_epoch_90": true},
+  "image_size": 512,
+  "global_batch_size": 16,
+  "optimizer": {
+    "name": "TF1Adam",
+    "learning_rate": 0.0002,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "epsilon": 1e-08
+  },
+  "schedule": {
+    "power": 0.9,
+    "final_learning_rate": 2e-06,
+    "decay_batches": "floor",
+    "epoch_batches": "ceil",
+    "shared_global_step": true,
+    "reset_adam_at_epoch_90": true
+  },
   "stages": [
-    {"epochs": 90, "weights": {"reconstruction": 3.0, "vgg": 1e-7, "variation": 0.5, "lightness": 1.0, "quantization": 0.0}},
-    {"epochs": 30, "weights": {"reconstruction": 3.0, "vgg": 1e-7, "variation": 0.1, "lightness": 1.0, "quantization": 10.0}}
+    {
+      "epochs": 90,
+      "weights": {
+        "reconstruction": 3.0,
+        "vgg": 1e-07,
+        "variation": 0.5,
+        "lightness": 1.0,
+        "quantization": 0.0
+      }
+    },
+    {
+      "epochs": 30,
+      "weights": {
+        "reconstruction": 3.0,
+        "vgg": 1e-07,
+        "variation": 0.1,
+        "lightness": 1.0,
+        "quantization": 10.0
+      }
+    }
   ],
-  "data": {"fit_role": "fit", "monitor_role": "val_tune", "view": "verified_pad512_full_frame_to_256_bilinear_uint8", "augmentation": "none"},
-  "vgg": {"output": "conv4_1_relu", "resize": "tf1_bilinear_no_half_pixel_224", "weights": "author_tensorflow_vgg19", "trainable": false},
-  "quantization": {"train": "continuous_gray_with_nearest_grid_penalty", "evaluation": "8bit_png_encode_decode"},
+  "data": {
+    "fit_role": "fit",
+    "monitor_role": "val_tune",
+    "view": "verified_pad512_uint8_exact",
+    "augmentation": "none"
+  },
+  "vgg": {
+    "output": "conv4_1_relu",
+    "resize": "tf1_bilinear_no_half_pixel_224",
+    "weights": "author_tensorflow_vgg19",
+    "trainable": false
+  },
+  "quantization": {
+    "train": "continuous_gray_with_nearest_grid_penalty",
+    "evaluation": "8bit_png_encode_decode"
+  },
   "checkpoint_every_epochs": 10,
   "log_every_steps": 100,
   "validation_batch_size": 1,
-  "runtime": {"device": "cuda", "gpu_ids": [], "cpu_threads": 4, "precision": "float32", "tf32": false, "amp": false, "gradient_accumulation": 1},
+  "runtime": {
+    "device": "cuda",
+    "gpu_ids": [],
+    "cpu_threads": 4,
+    "precision": "float32",
+    "tf32": false,
+    "amp": false,
+    "gradient_accumulation": 1
+  },
   "selection": "final_epoch_120_no_early_stopping",
   "next_phase": "stop"
 }

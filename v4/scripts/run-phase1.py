@@ -75,7 +75,7 @@ else:
         or cfg["global_batch_size"] % len(ids)
     ):
         raise SystemExit(
-            "Set unique physical gpu_ids in config; count must divide global batch 8"
+            "Set unique physical gpu_ids in config; count must divide configured global batch"
         )
     env["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, ids))
     if len(ids) > 1:

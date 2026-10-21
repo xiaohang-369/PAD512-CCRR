@@ -2,6 +2,8 @@
 
 本包只运行原 E→G0→D0 基线。作者的90＋30 epoch均属于V4第一阶段。没有身份/医学监督、加密、嵌入命令。先按下面1–4逐步检查、回传报告，再手动执行5；任何失败均保留现场，不自动换环境或改配置重跑。
 
+**当前输入512×512，全局batch16，完整执行前90＋后30epoch。旧9696b59的256/batch8包已被本版取代；不要用旧缓存或旧checkpoint启动本配置。**
+
 ## 1. 上传、解压、安装独立版本
 
 将本次 `PAD512-CCRR-V4-phase1-<commit>.tar.gz` 和同名 `.sha256` 放到服务器自己的上传目录。以下 `<commit>` 使用包名中的7位提交号：
@@ -31,7 +33,7 @@ $V4_ROOT/configs/phase1-resources-<commit>.json
 
 - `phase1-resources`：确认 `data_root` 对应冻结 PAD 数据；VGG路径、缓存和run目录均相对独立V4根目录，默认即可。权重已随包提供并绑定哈希。
 - `phase1-train`：填写 `runtime.gpu_ids`。例如 `[2]` 为一张物理卡，`[0,2]` 为两张物理卡；只是语法示例，不代表已分配这些卡。也可用设备UUID字符串；启动器只对本进程设置CUDA_DEVICE_ORDER=PCI_BUS_ID及CUDA_VISIBLE_DEVICES。
-- 全局batch固定8，支持1/2/4/8卡，对应每卡8/4/2/1，不自动放大学习率，不做梯度累积。卡数不能整除8会拒绝执行。
+- 全局batch固定16，支持1/2/4/8/16卡，对应每卡16/8/4/2/1，不自动放大学习率，不做梯度累积。卡数不能整除16会拒绝执行。
 - `runtime.cpu_threads`、日志频率、验证batch、保存频率均在配置中。验证batch默认1。基线损失/日程完整列在JSON；本次严格源码模式拒绝将改过的损失/epoch冒称同一基线。
 - 可用 `V4_CONFIG=/绝对路径/副本.json`、`V4_RESOURCES=/绝对路径/副本.json` 选择其他配置副本。
 
@@ -45,9 +47,9 @@ $V4_ROOT/configs/phase1-resources-<commit>.json
 bash phase1.sh prepare
 ```
 
-这一步在CPU校验冻结数据清单及源文件哈希；核验实际使用fit/val_tune的PAD512像素，创建独立256缓存；校验VGG。完成后输出 `PHASE1_PREPARED=.../prepared.json`。重复调用不会覆盖现有缓存；若已经成功，无需重建。若失败，请回传报错并保留目录。
+这一步在CPU校验冻结数据清单及源文件哈希；核验实际使用fit/val_tune的PAD512像素，直接创建像素一致的512缓存（不降采样）；校验VGG。完成后输出 `PHASE1_PREPARED=.../prepared.json`。重复调用不会覆盖现有缓存；若已经成功，无需重建。若失败，请回传报错并保留目录。
 
-默认新建：`$V4_ROOT/data/phase1-author256/`。数据适配定义见release的 `v4/PHASE1_AUDIT.md`。预期fit1433、val_tune169；不能擅自混入calibration/val_select/test扩充训练数据。
+默认新建：`$V4_ROOT/data/phase1-pad512-b16/`。数据适配定义见release的 `v4/PHASE1_AUDIT.md`。预期fit1433、val_tune169；不能擅自混入calibration/val_select/test扩充训练数据。
 
 ## 4. 所选单卡/多卡预检，零更新
 
@@ -55,7 +57,7 @@ bash phase1.sh prepare
 bash phase1.sh preflight
 ```
 
-按配置启动单进程或真实DDP。用全局batch8检查两段完整原损失、原E/D梯度、VGG冻结、真实8bit PNG读回；不调用optimizer.step，不保存训练checkpoint。输出唯一目录及 `PHASE1_REPORT=.../report.json`。
+按配置启动单进程或真实DDP。用全局batch16检查两段完整原损失、原E/D梯度、VGG冻结、真实8bit PNG读回；不调用optimizer.step，不保存训练checkpoint。输出唯一目录及 `PHASE1_REPORT=.../report.json`。
 
 回传该 `report.json` 和安装/准备终端输出即可，不要回传患者图像。需看到 `passed=true`、`optimizer_updates=0`、`png_exact=true`、`vgg_frozen=true`，并确认world_size符合选卡。多卡GPU/NCCL是否可用以本步骤实测为准，本地仅完成CPU Gloo多进程检查。
 
@@ -67,7 +69,7 @@ bash phase1.sh preflight
 bash phase1.sh train
 ```
 
-这条命令才会更新参数，执行90＋30epoch，默认21,600步。它不会进入身份/医学监督或任何后续阶段。输出在唯一的 `$V4_ROOT/runs/phase1/train.<时间>.<PID>/`，绝不覆盖旧run。
+这条命令才会更新参数，执行90＋30epoch，默认10,800步。它不会进入身份/医学监督或任何后续阶段。输出在唯一的 `$V4_ROOT/runs/phase1/train.<时间>.<PID>/`，绝不覆盖旧run。
 
 应保留：
 
@@ -87,7 +89,7 @@ bash phase1.sh train
 bash phase1.sh train --resume /绝对路径/原run/epoch-090.pt
 ```
 
-代码、缓存、VGG、损失日程必须匹配；可调整GPU分配但全局batch保持8。若第91epoch前恢复，第二段Adam重新开始，但LR global_step继续。文件损坏/配置变化会拒绝，不覆盖原run；已完成120epoch的checkpoint不会继续训练。
+代码、缓存、VGG、损失日程必须匹配；可调整GPU分配但全局batch保持16。若第91epoch前恢复，第二段Adam重新开始，但LR global_step继续。文件损坏/配置变化会拒绝，不覆盖原run；已完成120epoch的checkpoint不会继续训练。
 
 ## 验证范围
 

@@ -37,7 +37,7 @@ def setup(cfg):
     )
     runtime = cfg["runtime"]
     if cfg["global_batch_size"] % world:
-        raise ValueError("Global batch 8 must be divisible by GPU count")
+        raise ValueError("Configured global batch must be divisible by GPU count")
     torch.set_num_threads(runtime["cpu_threads"])
     torch.manual_seed(cfg["seed"])
     torch.backends.cuda.matmul.allow_tf32 = False

@@ -12,7 +12,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from ccrr_v4.phase1.optim import TF1Adam, polynomial_lr, ContinuousBatches
 from ccrr_v4.phase1.vgg import AuthorVGG, LAYERS, read_author_npy
-from ccrr_v4.phase1.data import load_config, pad256
+from ccrr_v4.phase1.data import load_config, load_prepared, pad512_bytes
 from ccrr_v4.phase1 import runner
 from ccrr_v4.losses import source_terms
 from ccrr_v4.verify import digest
@@ -53,18 +53,23 @@ def test_tf_adam_matches_uncorrected_epsilon_and_resumes(tmp_path):
     assert fresh.param_groups[0]["updates"] == 0 and not fresh.state
 
 
-def test_source_ceil_updates_floor_decay_and_full_batches():
-    stream = ContinuousBatches(1433, 8, 20261021)
-    first = [i for _ in range(180) for i in stream.next()]
+@pytest.mark.parametrize(
+    "batch,epochs_steps,decay_steps", [(8, 180, 21480), (16, 90, 10680)]
+)
+def test_source_ceil_updates_floor_decay_and_full_batches(
+    batch, epochs_steps, decay_steps
+):
+    stream = ContinuousBatches(1433, batch, 20261021)
+    first = [i for _ in range(epochs_steps) for i in stream.next()]
     assert len(first) == 1440 and len(set(first[:1433])) == 1433
     assert stream.position == 1440
-    resumed = ContinuousBatches(1433, 8, 20261021, position=1440)
+    resumed = ContinuousBatches(1433, batch, 20261021, position=1440)
     assert resumed.next() == stream.next()
-    decay = (1433 // 8) * 120
-    assert decay == 21480
+    decay = (1433 // batch) * 120
+    assert decay == decay_steps
     assert polynomial_lr(0, decay) == pytest.approx(2e-4)
     assert polynomial_lr(decay, decay) == 2e-6
-    assert polynomial_lr(21600, decay) == 2e-6
+    assert polynomial_lr(epochs_steps * 120, decay) == 2e-6
 
 
 def test_float32_quant_grid_uses_author_numpy_construction():
@@ -136,8 +141,8 @@ def test_config_prevents_silent_loss_and_schedule_changes(tmp_path):
 
 def test_data_adapter_and_png_boundary():
     x = torch.full((3, 512, 512), 128 / 255)
-    a = pad256(x)
-    assert a.shape == (256, 256, 3) and a.dtype == np.uint8 and np.all(a == 128)
+    a = pad512_bytes(x)
+    assert a.shape == (512, 512, 3) and a.dtype == np.uint8 and np.all(a == 128)
     g = torch.tensor([-1.0, -0.123, 0.0, 0.123, 1.0]).view(1, 1, 1, 5)
     received = runner.digital_roundtrip(g)
     expected = torch.floor((g + 1) * 127.5 + 0.5) / 127.5 - 1
@@ -171,12 +176,12 @@ def test_training_controller_90_30_reset_checkpoint_resume_and_stop(
     config.write_text(json.dumps(cfg))
     prepared = tmp_path / "prepared.json"
     prepared.write_text("{}")
-    array = np.random.default_rng(6).integers(0, 256, (8, 8, 8, 3), dtype=np.uint8)
+    array = np.random.default_rng(6).integers(0, 256, (16, 8, 8, 3), dtype=np.uint8)
     p = dict(
         vgg=dict(path="test-only", sha256="test-only"),
         schedule_counts=dict(
-            fit_images=8,
-            global_batch=8,
+            fit_images=16,
+            global_batch=16,
             steps_per_epoch=1,
             decay_steps=120,
             total_steps=120,
@@ -246,3 +251,30 @@ def test_two_process_global_tv_matches_single_global_batch(tmp_path):
         observed = torch.load(tmp_path / f"{rank}.pt", weights_only=True)
         assert torch.allclose(observed["loss"], loss, atol=1e-7)
         assert torch.allclose(observed["grad"], model.scale.grad, atol=1e-7)
+
+
+def test_pad512_adapter_preserves_every_admitted_pixel():
+    original = np.random.default_rng(12).integers(0, 256, (512, 512, 3), dtype=np.uint8)
+    x = torch.from_numpy(original.copy()).permute(2, 0, 1).float() / 255
+    assert np.array_equal(pad512_bytes(x), original)
+    cfg = load_config(ROOT / "configs/phase1-train.json")
+    assert cfg["image_size"] == 512 and cfg["global_batch_size"] == 16
+    assert [s["epochs"] for s in cfg["stages"]] == [90, 30]
+
+
+def test_old_256_cache_cannot_enter_512_training(tmp_path):
+    cfg = load_config(ROOT / "configs/phase1-train.json")
+    old = copy.deepcopy(cfg)
+    old["image_size"] = 256
+    p = tmp_path / "prepared.json"
+    p.write_text(
+        json.dumps(
+            dict(
+                schema="ccrr-v4-phase1-cache-1",
+                used_roles_pixels512_verified=True,
+                config=old,
+            )
+        )
+    )
+    with pytest.raises(ValueError, match="Prepared data/configuration mismatch"):
+        load_prepared(p, cfg)

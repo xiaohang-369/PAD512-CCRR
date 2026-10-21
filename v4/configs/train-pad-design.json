@@ -4,10 +4,10 @@
   "training_enabled": false,
   "model": "author-5dc2a0f-port1",
   "image_size": [
-    256,
-    256
+    512,
+    512
   ],
-  "global_batch_size": 8,
+  "global_batch_size": 16,
   "gradient_accumulation_steps": 1,
   "seed": 20261021,
   "optimizer": null,

@@ -5,7 +5,6 @@ import json
 import math
 from pathlib import Path
 import numpy as np
-from PIL import Image
 import torch
 from ..verify import digest, read, source_check, REPO
 
@@ -51,18 +50,11 @@ def load_config(path):
     return cfg
 
 
-def pad256(x):
-    """Named PAD adaptation, not an invented claim about VOC cropping."""
-    a = torch.floor(x * 255 + 0.5).byte().permute(1, 2, 0).numpy()
-    channels = [
-        np.asarray(
-            Image.fromarray(a[:, :, c].astype(np.float32)).resize(
-                (256, 256), Image.Resampling.BILINEAR
-            )
-        )
-        for c in range(3)
-    ]
-    return np.clip(np.floor(np.stack(channels, -1) + 0.5), 0, 255).astype(np.uint8)
+def pad512_bytes(x):
+    """Recover admitted PAD512 bytes exactly, without resizing or cropping."""
+    if x.shape != (3, 512, 512):
+        raise ValueError("Require verified 512x512 RGB input")
+    return torch.floor(x * 255 + 0.5).byte().permute(1, 2, 0).numpy()
 
 
 def prepare(config_path, data_root, vgg_path, vgg_sha, output):
@@ -83,10 +75,15 @@ def prepare(config_path, data_root, vgg_path, vgg_sha, output):
         data = PADData(data_root, role)
         dest = output / f"{role}.npy"
         images = np.lib.format.open_memmap(
-            dest, mode="w+", dtype=np.uint8, shape=(len(data), 256, 256, 3)
+            dest,
+            mode="w+",
+            dtype=np.uint8,
+            shape=(len(data), cfg["image_size"], cfg["image_size"], 3),
         )
         for i in range(len(data)):
-            images[i] = pad256(data[i]["x"])  # PADData verifies every used RGB512 hash.
+            images[i] = pad512_bytes(
+                data[i]["x"]
+            )  # PADData verifies every used RGB512 hash.
             if (i + 1) % 100 == 0:
                 print(f"PREPARE role={role} images={i + 1}/{len(data)}", flush=True)
         images.flush()
@@ -141,7 +138,12 @@ def load_prepared(path, cfg):
         if f.parent != path.parent or digest(f) != entry["sha256"]:
             raise ValueError("Prepared data checksum/path mismatch")
         a = np.load(f, mmap_mode="r", allow_pickle=False)
-        if a.dtype != np.uint8 or a.shape != (entry["images"], 256, 256, 3):
+        if a.dtype != np.uint8 or a.shape != (
+            entry["images"],
+            cfg["image_size"],
+            cfg["image_size"],
+            3,
+        ):
             raise ValueError("Prepared array shape/dtype mismatch")
         arrays[role] = a
     if len(arrays["fit"]) < cfg["global_batch_size"]:

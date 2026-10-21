@@ -66,5 +66,8 @@
     "distributed": "phase1_training_ddp_implemented_gpu_pending",
     "precision": "float32"
   },
-  "executable_config": "phase1-train.json"
+  "executable_config": "phase1-train.json",
+  "notes": [
+    "Historical author defaults are 256x256/batch8. Actual authorized PAD run uses phase1-train.json: 512x512/global batch16, both full 90+30 epochs."
+  ]
 }
