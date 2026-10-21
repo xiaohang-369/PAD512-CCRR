@@ -5,6 +5,7 @@
 ## 入口
 
 - [V4设计与修改边界](DESIGN.md)
+- [新增步骤、接收接口与训练职责推导](INTERFACE_DESIGN.md)
 - [逐层来源对应及差异](SOURCE_MAP.md)
 - [独立配置目录](configs/README.md)
 - `upstream/InvertibleGrayscale/`：完整作者仓库的固定版本内容、原README和许可证；不修改、不直接运行原main.py。

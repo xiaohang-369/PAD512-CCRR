@@ -3,6 +3,8 @@
 作者仓库 https://github.com/MenghanXia/InvertibleGrayscale ，固定commit `5dc2a0f7c6b692ca7914941745bd29b227ff4dbb`。
 完整7文件保留，逐文件SHA-256在`upstream/provenance.json`。本地完整Git clone在研究目录`参考源码/InvertibleGrayscale`。
 
+未来新增职责及其具体接入位置见[接口推导第5节](INTERFACE_DESIGN.md#5-每项新增职责怎样对应作者代码)；该表不表示这些模块已经实现。
+
 | 原文件位置 | V4对应 | 核对点 |
 |---|---|---|
 | model.py:11–19 Conv2d | original.Conv / same_pad | 无bias，std=.02，TF SAME stride2偶数尺寸前0后1 |
