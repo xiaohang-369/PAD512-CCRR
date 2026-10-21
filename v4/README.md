@@ -1,0 +1,22 @@
+# V4：基于 Invertible Grayscale 原方法的优化与扩展
+
+状态：2026-10-21，原方法迁移与工程验证版。完整授权系统尚未实现；本版本没有训练命令。
+
+## 入口
+
+- [V4设计与修改边界](DESIGN.md)
+- [逐层来源对应及差异](SOURCE_MAP.md)
+- [独立配置目录](configs/README.md)
+- `upstream/InvertibleGrayscale/`：完整作者仓库的固定版本内容、原README和许可证；不修改、不直接运行原main.py。
+- `ccrr_v4/original.py`：可核对的PyTorch迁移，默认只有原E→单通道→原D。
+- `scripts/run-verify.sh`：CPU/指定GPU及已有监督器的无更新验证。
+
+本地测试：`PYTHONPATH=v4:v3:v2:src python -m pytest v4/tests -q`。需要已有torch/numpy/Pillow/pytest；不通过脚本安装依赖。
+
+服务器先安装独立离线包，然后用包内README执行CPU验证。GPU用`--gpus`显式指定一张或多张卡；多个设备逐卡验证，不宣称已经实现DDP训练。原监督器路径通过`--resources`读取配置，只有已选的fit首批像素参与接入检查，test不评价。
+
+原作者代码与论文存在差异；本次源码基线采用固定作者实现。源码算子/结构检查不是TensorFlow运行时逐位复现，随机初始化检查也不是训练结果。原VGG权重尚未下载验证，因此不能执行或宣称原完整训练损失已验证。
+
+上游：Xia, Liu, Wong, *Invertible Grayscale*, ACM TOG 37(6), 2018. https://doi.org/10.1145/3272127.3275080
+
+保留作者版权与许可证：[LICENSE.txt](upstream/InvertibleGrayscale/LICENSE.txt)。派生实现随同该许可与引用说明分发。

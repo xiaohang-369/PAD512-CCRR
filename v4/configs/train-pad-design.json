@@ -1,0 +1,17 @@
+{
+  "schema": "ccrr-v4-training-design-1",
+  "status": "design_pending_source_validation_and_rate_capacity_decision",
+  "training_enabled": false,
+  "model": "author-5dc2a0f-port1",
+  "image_size": [512, 512],
+  "global_batch_size": 16,
+  "gradient_accumulation_steps": 1,
+  "seed": 20261021,
+  "optimizer": null,
+  "schedule": null,
+  "loss_weights": null,
+  "public_private_interface": "unselected_candidate_do_not_invent_network",
+  "supervision": {"primary_step": 8500, "control_step": 7000, "freeze_parameters": true, "retain_input_gradients": true, "clinical_scope": "PAD_six_class_readout", "pixel_privacy_qualified": false},
+  "runtime": {"gpu_ids": [], "parallel_strategy": "single_or_ddp_to_be_implemented", "per_device_batch_size": null},
+  "notes": ["Author configuration is a source reference, not PAD training authorization.", "For future DDP: global_batch=world_size*per_device_batch*accumulation; reject indivisible batches.", "No training CLI is shipped in this validation release."]
+}

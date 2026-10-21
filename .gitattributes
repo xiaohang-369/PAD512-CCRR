@@ -1,0 +1,2 @@
+# Preserve the author's original bytes (including CRLF and whitespace) for SHA checks.
+v4/upstream/InvertibleGrayscale/** -text -whitespace

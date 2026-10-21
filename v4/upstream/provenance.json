@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/MenghanXia/InvertibleGrayscale",
+  "commit": "5dc2a0f7c6b692ca7914941745bd29b227ff4dbb",
+  "retrieved_date": "2026-10-21",
+  "original_tensorflow_runtime_executed": false,
+  "original_training_script_executed": false,
+  "source_forward_checked_with_numpy_oracle": true,
+  "files": {
+    "LICENSE.txt": "a144ce80fe7e93f3cde7ef4b055a37b11aa1a20f876b080bc00d823cfbac0b06",
+    "README.md": "31ab02cc1d7e19b38144835de947f0152b7f43470d4b5532879f296c199ea064",
+    "img/examples.jpg": "34da2bec7d842b8c6e5657c56c1fd7abd907df83622eb55eaa34509db238afb0",
+    "img/overview.jpg": "0d2e4c76f54179b54f6b44aa05bcf4fbc3e448fdd139acefd2601fc1e230a07a",
+    "main.py": "555284a03f83b796a4f0aaa1fe13a8cdc1c4bda32857f57b503491cac10a1f2a",
+    "model.py": "fb8f7776c8f1d54cd2772c5efd0d8cdf50df7d51574981f28485082dee1075cd",
+    "util.py": "a8169baf1a3795dd9c72bb7101504361381690eb11785c1654ce1354d9716ffa"
+  }
+}

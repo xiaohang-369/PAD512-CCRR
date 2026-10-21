@@ -1,0 +1,9 @@
+{
+  "schema": "ccrr-v4-readonly-parent-resources-1",
+  "parent_resources": "/data/zwc/zyh/PAD512-CCRR-V3/private/resources.json",
+  "features": "/data/zwc/zyh/PAD512-CCRR-V2/runs/A0-features/A0-features.txSIuAiL",
+  "separator": "/data/zwc/zyh/PAD512-CCRR-V3/runs/train/dev2-separation.20261020-184228.3079814",
+  "supervisor_step": 8500,
+  "reference_cache_batch_size": 16,
+  "note": "Historical paths, revalidated read-only on server. Copy and edit this JSON if moved. Never modify parent artifacts."
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "ccrr-v4-verification-1",
+  "model": "author-5dc2a0f-port1",
+  "seed": 20261021,
+  "per_device_batch_size": 1,
+  "image_size": [32, 32],
+  "devices": ["cpu"],
+  "cpu_threads": 2,
+  "verify_supervisor": false,
+  "resources_file": null
+}
