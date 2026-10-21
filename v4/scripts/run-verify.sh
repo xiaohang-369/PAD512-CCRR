@@ -20,7 +20,7 @@ test -x "$V4_PYTHON"
 test -f "$V4_CONFIG"
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONPATH="$V4_SOURCE/v4:$V4_SOURCE/v3:$V4_SOURCE/v2:$V4_SOURCE/src"
-V4_ARGS=()
+V4_ARGS=(--config "$V4_CONFIG")
 if [[ -n "$V4_GPUS" ]]; then
   [[ "$V4_GPUS" =~ ^[0-9]+(,[0-9]+)*$ ]] || { echo 'Use --gpus 0 or --gpus 0,2 (examples only)' >&2; exit 2; }
   export CUDA_VISIBLE_DEVICES="$V4_GPUS"
@@ -35,8 +35,8 @@ if [[ -n "$V4_RESOURCES" ]]; then
 fi
 mkdir -p "$V4_ROOT/runs" "$V4_ROOT/logs"
 V4_RUN="$V4_ROOT/runs/verify.$(date -u +%Y%m%d-%H%M%S).$$.$RANDOM"
-V4_LOG=$(mktemp "$V4_ROOT/logs/verify.XXXXXXXX.log")
+V4_LOG=$(mktemp "$V4_ROOT/logs/verify.XXXXXXXX")
 echo "BEGIN_V4_VERIFY source=$V4_SOURCE config=$V4_CONFIG selected_gpus=${V4_GPUS:-cpu}"
 echo "LOG: $V4_LOG"
-"$V4_PYTHON" -B -m ccrr_v4.verify --config "$V4_CONFIG" --output "$V4_RUN" "${V4_ARGS[@]}" 2>&1 | tee "$V4_LOG"
+"$V4_PYTHON" -B -m ccrr_v4.verify --output "$V4_RUN" "${V4_ARGS[@]}" 2>&1 | tee "$V4_LOG"
 echo 'END_V4_VERIFY training_started=False optimizer_updates=0'
