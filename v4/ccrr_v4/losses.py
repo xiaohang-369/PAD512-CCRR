@@ -25,7 +25,7 @@ def legacy_resize_bilinear(x, size):
     return (a * (1 - wx) + b * wx) * (1 - wy) + (c * (1 - wx) + d * wx) * wy
 
 
-def source_terms(x, g, rgb):
+def source_terms(x, g, rgb, *, distributed=False):
     y = (x * x.new_tensor([0.2989, 0.5870, 0.1140])[None, :, None, None]).sum(
         1, keepdim=True
     )
@@ -41,23 +41,41 @@ def source_terms(x, g, rgb):
     # as TensorFlow reduce_min does; use the two neighboring grid levels to avoid N*256*H*W.
     lo = (((g + 1) * 127.5).floor()).clamp(0, 255)
     hi = (lo + 1).clamp(0, 255)
+    # Upstream creates its grid with NumPy float64 and TF then casts to the
+    # latent tensor dtype. Computing the grid in float32 changes boundary values.
+    levels = (torch.arange(256, device=g.device, dtype=torch.float64) / 127.5 - 1).to(
+        g.dtype
+    )
     quant = torch.minimum(
-        (g - (lo / 127.5 - 1)).abs(), (g - (hi / 127.5 - 1)).abs()
+        (g - levels[lo.long()]).abs(), (g - levels[hi.long()]).abs()
     ).mean()
+    light_delta = g.sub(y).abs()
+    threshold = g.new_tensor(70 / 127.0)
+    variation_delta = tv(g) - tv(y)
+    if distributed:
+        import torch.distributed as dist
+        from torch.distributed.nn.functional import all_reduce
+
+        # The author's abs is AFTER the global batch mean, not rank-local abs.
+        variation_delta = all_reduce(variation_delta) / dist.get_world_size()
     return dict(
         mse=F.mse_loss(rgb, x),
-        variation=(tv(g) - tv(y)).abs(),
-        lightness=(g.sub(y).abs() - 70 / 127.0).clamp_min(0).mean(),
+        variation=variation_delta.abs(),
+        # TF maximum chooses its first (constant) operand at equality.
+        lightness=torch.where(light_delta > threshold, light_delta, threshold).mean()
+        - threshold,
         quantization=quant,
     )
 
 
-def author_loss(x, g, rgb, target_features, gray_features, stage, weights):
+def author_loss(
+    x, g, rgb, target_features, gray_features, stage, weights, *, distributed=False
+):
     if stage not in (1, 2):
         raise ValueError("Author reference has exactly two stages")
     if target_features is None or gray_features is None:
         raise ValueError("Author VGG features are mandatory; no silent substitute")
-    terms = source_terms(x, g, rgb)
+    terms = source_terms(x, g, rgb, distributed=distributed)
     terms["vgg"] = F.mse_loss(gray_features, target_features.detach())
     total = (
         weights["reconstruction"] * terms["mse"]

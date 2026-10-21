@@ -1,9 +1,12 @@
 {
   "schema": "ccrr-v4-training-design-1",
-  "status": "phase_1_original_method_training_preparation",
+  "status": "historical_design_use_phase1_train_json",
   "training_enabled": false,
   "model": "author-5dc2a0f-port1",
-  "image_size": [256, 256],
+  "image_size": [
+    256,
+    256
+  ],
   "global_batch_size": 8,
   "gradient_accumulation_steps": 1,
   "seed": 20261021,
@@ -15,8 +18,21 @@
   "recovery_reference": "frozen_baseline_encoder_decoder_and_quantization",
   "method_design": "v4/RESIDUAL_PLAN.md",
   "workflow": "v4/configs/workflow-v4.json",
-  "phase_1_source_reference": "v4/configs/train-author-reference.json",
-  "supervision": {"primary_step": 8500, "control_step": 7000, "freeze_parameters": true, "retain_input_gradients": true, "clinical_scope": "PAD_six_class_readout", "pixel_privacy_qualified": false},
-  "runtime": {"gpu_ids": [], "parallel_strategy": "single_or_ddp_to_be_implemented", "per_device_batch_size": null},
-  "notes": ["Author configuration is a source reference, not PAD training authorization.", "For future DDP: global_batch=world_size*per_device_batch*accumulation; reject indivisible batches.", "No training CLI is shipped in this validation release."]
+  "phase_1_source_reference": "phase1-train.json",
+  "supervision": {
+    "primary_step": 8500,
+    "control_step": 7000,
+    "freeze_parameters": true,
+    "retain_input_gradients": true,
+    "clinical_scope": "PAD_six_class_readout",
+    "pixel_privacy_qualified": false
+  },
+  "runtime": {
+    "gpu_ids": [],
+    "parallel_strategy": "single_or_ddp_to_be_implemented",
+    "per_device_batch_size": null
+  },
+  "notes": [
+    "Historical full-system design, not executable. Current phase-1-only training uses phase1-train.json."
+  ]
 }

@@ -1,0 +1,142 @@
+{
+  "schema": "ccrr-v4-vgg-origin-1",
+  "npy_sha256": "230f8aac6679445545743fa5ea3839f963677a38e008846f13364e6caa594f60",
+  "npy_source": "https://www.dropbox.com/s/691wtp4oq5ip38p/vgg19.npy?dl=1",
+  "mirror_reference": "https://github.com/rikardocorp/tensorflow_vgg_train",
+  "original_mega_file_byte_identity": "unavailable_original_link_returned_minus16",
+  "caffe_source": "https://www.robots.ox.ac.uk/~vgg/software/very_deep/caffe/VGG_ILSVRC_19_layers.caffemodel",
+  "caffe_reference": "https://gist.github.com/ksimonyan/3785162f95cd2d5fee77",
+  "caffe_sha256": "31b4c627c40c6ee151325f079b7ac557fddbd1f79af932888796127a4f4f6954",
+  "exact_conv_layers_compared": 9,
+  "layers": {
+    "conv1_1": {
+      "weight_shape": [
+        3,
+        3,
+        3,
+        64
+      ],
+      "bias_shape": [
+        64
+      ],
+      "exact_equal": true,
+      "weight_sha256": "4dfc08de3aa222ed819de4dce4adfa4d366e39ac165ccba188c00b1d48f0803d",
+      "bias_sha256": "f8941ad2059e42ccbd36bbbd2d6ac03364baaeabae90033573809fade7939de1"
+    },
+    "conv1_2": {
+      "weight_shape": [
+        3,
+        3,
+        64,
+        64
+      ],
+      "bias_shape": [
+        64
+      ],
+      "exact_equal": true,
+      "weight_sha256": "db07d0b9c2118789b96a058b3fa9950b11b5edc08f4ea4c2bb1a8efaf6f8b168",
+      "bias_sha256": "5761d90241981f04d827da94d22b213443a0aa5179612540d778137c76a20812"
+    },
+    "conv2_1": {
+      "weight_shape": [
+        3,
+        3,
+        64,
+        128
+      ],
+      "bias_shape": [
+        128
+      ],
+      "exact_equal": true,
+      "weight_sha256": "f41f25c1340e64c5140aa559123fe283cea66bd50456224d98ac335918b77f10",
+      "bias_sha256": "4b770cb032dabd86141d9c219249d2a9613004918c07a69d27078b11cbed9ccf"
+    },
+    "conv2_2": {
+      "weight_shape": [
+        3,
+        3,
+        128,
+        128
+      ],
+      "bias_shape": [
+        128
+      ],
+      "exact_equal": true,
+      "weight_sha256": "bc7aa9c12586cebdc6ddc0a717184b53457fc66914ec98791123d82cd2544137",
+      "bias_sha256": "2b817920c16e27b478c5692794aced5a8e23769480bba794c0d8ad8190934d03"
+    },
+    "conv3_1": {
+      "weight_shape": [
+        3,
+        3,
+        128,
+        256
+      ],
+      "bias_shape": [
+        256
+      ],
+      "exact_equal": true,
+      "weight_sha256": "348cee5bd8f72c6498b45493a8328292495fa21600833ebb5a0fb657d68f9053",
+      "bias_sha256": "b00b2e1b3f88d36476bebfaf5f787d8be0f4fc2f916e746b87c57b82d6b6b0dd"
+    },
+    "conv3_2": {
+      "weight_shape": [
+        3,
+        3,
+        256,
+        256
+      ],
+      "bias_shape": [
+        256
+      ],
+      "exact_equal": true,
+      "weight_sha256": "6d6e276a1ca728a82b54de51e854ee32f05206fb6c8e12bdc88f4a5fedeeda93",
+      "bias_sha256": "8a2d2d519f265c1203c19d34b221231a9e04e84fe15000a7c0a6b3650094841f"
+    },
+    "conv3_3": {
+      "weight_shape": [
+        3,
+        3,
+        256,
+        256
+      ],
+      "bias_shape": [
+        256
+      ],
+      "exact_equal": true,
+      "weight_sha256": "eb9486c7f572d42be318ede9af8a09ad707fb9829d2a46b78ccc547f1c9844ac",
+      "bias_sha256": "9af5673e3e3a99dc8bc73c6247f71cf8fab3ecc529a5afd2456c76067b99523b"
+    },
+    "conv3_4": {
+      "weight_shape": [
+        3,
+        3,
+        256,
+        256
+      ],
+      "bias_shape": [
+        256
+      ],
+      "exact_equal": true,
+      "weight_sha256": "b01bfc7af3f8a1783c0e2f4bf590b61df0d80c8fa3072a1ad6d3e2b7e670ef0c",
+      "bias_sha256": "2f7261deddc1711356d82920b6a36640316151042ef30c37da5b9730cccce935"
+    },
+    "conv4_1": {
+      "weight_shape": [
+        3,
+        3,
+        256,
+        512
+      ],
+      "bias_shape": [
+        512
+      ],
+      "exact_equal": true,
+      "weight_sha256": "21028a4aca5475b7560bdb55d61362e594f244b6531c18b4f9758d4dda2b1269",
+      "bias_sha256": "4db22eed4328f1548c86294265108783775be50a0609da61b6b920c457cc54f1"
+    }
+  },
+  "feature_file": "vgg19-conv4_1.npz",
+  "feature_sha256": "978ab8d420115421506279b38f5fc19a8a74fb02036d5f9c043604fa07fcf53b",
+  "feature_bytes": 14027578
+}

@@ -1,0 +1,8 @@
+{
+  "schema": "ccrr-v4-phase1-resources-1",
+  "data_root": "/data/zwc/zyh/data/PAD-UFES-20",
+  "vgg_file": "resources/vgg19-conv4_1.npz",
+  "vgg_sha256": "978ab8d420115421506279b38f5fc19a8a74fb02036d5f9c043604fa07fcf53b",
+  "prepared_dir": "data/phase1-author256",
+  "runs_dir": "runs/phase1"
+}

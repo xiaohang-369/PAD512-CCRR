@@ -5,13 +5,66 @@
   "model": "author-5dc2a0f-port1",
   "reference_data": "VOC2012, 256x256; NOT a registered PAD schedule",
   "global_batch_size": 8,
-  "optimizer": {"name": "Adam", "learning_rate": 0.0002, "betas": [0.9, 0.999], "epsilon": 1e-8, "weight_decay": 0.0},
-  "schedule": {"type": "polynomial", "power": 0.9, "final_learning_rate": 0.000002, "global_step_shared": true, "separate_optimizer_state_per_stage": true},
+  "optimizer": {
+    "name": "TF1Adam",
+    "learning_rate": 0.0002,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "epsilon": 1e-08,
+    "weight_decay": 0.0
+  },
+  "schedule": {
+    "type": "polynomial",
+    "power": 0.9,
+    "final_learning_rate": 2e-06,
+    "global_step_shared": true,
+    "separate_optimizer_state_per_stage": true,
+    "epoch_batches": "ceil",
+    "decay_batches": "floor"
+  },
   "stages": [
-    {"stage": 1, "epochs": 90, "weights": {"reconstruction": 3.0, "vgg": 1e-7, "variation": 0.5, "lightness": 1.0, "quantization": 0.0}},
-    {"stage": 2, "epochs": 30, "weights": {"reconstruction": 3.0, "vgg": 1e-7, "variation": 0.1, "lightness": 1.0, "quantization": 10.0}}
+    {
+      "stage": 1,
+      "epochs": 90,
+      "weights": {
+        "reconstruction": 3.0,
+        "vgg": 1e-07,
+        "variation": 0.5,
+        "lightness": 1.0,
+        "quantization": 0.0
+      }
+    },
+    {
+      "stage": 2,
+      "epochs": 30,
+      "weights": {
+        "reconstruction": 3.0,
+        "vgg": 1e-07,
+        "variation": 0.1,
+        "lightness": 1.0,
+        "quantization": 10.0
+      }
+    }
   ],
-  "vgg": {"source": "author vgg19.npy", "path": null, "sha256": null, "output": "conv4_1_relu", "resize": "tf1_bilinear_no_half_pixel_224", "verified": false},
-  "quantization": {"training": "continuous_with_grid_penalty", "reception": "actual_uint8_png_roundtrip"},
-  "runtime": {"gpu_ids": [], "distributed": "not_implemented", "precision": "float32"}
+  "vgg": {
+    "source": "author vgg19.npy",
+    "path": null,
+    "sha256": "978ab8d420115421506279b38f5fc19a8a74fb02036d5f9c043604fa07fcf53b",
+    "output": "conv4_1_relu",
+    "resize": "tf1_bilinear_no_half_pixel_224",
+    "verified": true,
+    "provenance": "../upstream/vgg-provenance.json"
+  },
+  "quantization": {
+    "training": "continuous_with_grid_penalty",
+    "reception": "actual_uint8_png_roundtrip"
+  },
+  "runtime": {
+    "gpu_ids": [],
+    "distributed": "phase1_training_ddp_implemented_gpu_pending",
+    "precision": "float32"
+  },
+  "executable_config": "phase1-train.json"
 }
