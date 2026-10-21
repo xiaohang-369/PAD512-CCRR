@@ -16,6 +16,9 @@ def same_pad(x, kernel, stride):
     h, w = x.shape[-2:]
     ph = max((math.ceil(h / stride) - 1) * stride + kernel - h, 0)
     pw = max((math.ceil(w / stride) - 1) * stride + kernel - w, 0)
+    # Zero-width F.pad still copies the tensor. SAME with no padding is identity.
+    if ph == 0 and pw == 0:
+        return x
     return F.pad(x, (pw // 2, pw - pw // 2, ph // 2, ph - ph // 2))
 
 

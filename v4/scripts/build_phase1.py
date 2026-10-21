@@ -167,7 +167,7 @@ report = dict(
     sha256=sha(archive),
     bytes=archive.stat().st_size,
 )
-archive.with_suffix(".tar.gz.sha256").write_text(
+archive.with_name(archive.name + ".sha256").write_text(
     report["sha256"] + "  " + archive.name + "\n"
 )
 print(json.dumps(report, indent=2))
