@@ -40,10 +40,18 @@
         "ordinary_gray"
       ],
       "criterion": "lower_identity_recognition_and_acceptable_medical_loss",
-      "loss_weights": null,
-      "state": "resources_verified_frozen_baseline_evaluation_prepared",
+      "loss_weights": {
+        "original": "author_stage2",
+        "medical": 0.1,
+        "medical_kd": 0.5,
+        "identity": 0.1
+      },
+      "state": "baseline_evaluated_g1_implementation_ready_server_pending",
       "resource_config": "phase2-resources.json",
-      "evaluation_config": "phase2-baseline.json"
+      "evaluation_config": "phase2-baseline.json",
+      "training_config": "phase2-g1.json",
+      "medical_acceptance_threshold": null,
+      "development_epochs": 30
     },
     {
       "id": "p3_supervised_embedding",
