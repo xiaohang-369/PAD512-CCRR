@@ -160,9 +160,21 @@ def test_new_config_only_extends_joint_run():
     old = json.loads((root / "phase2-g1.json").read_text())
     new = json.loads((root / "phase2-g1-resume60.json").read_text())
     validate_config(new)
-    assert {k for k in old if old[k] != new[k]} == {"epochs"}
+    assert {k for k in old if old[k] != new[k]} == {"epochs", "gpu_ids"}
     assert new["epochs"] == 60 and new["update_modules"] == ["E1", "D1"]
-    assert new["gpu_ids"] == [0, 2]
+    assert new["gpu_ids"] == [1, 2]
+
+
+def test_resume_allows_physical_gpu_remap_but_not_world_size_change(tmp_path):
+    cfg, ctx, original, *_ = fixture(tmp_path)
+    cfg["gpu_ids"] = [2]
+    validate_config(cfg)
+    resume = load_resume(cfg, ctx)
+    assert resume["evidence"]["start_step"] == 4
+    assert state_digest(ctx["model"]) == state_digest(original)
+    cfg["gpu_ids"] = [1, 2]
+    with pytest.raises(ValueError, match="GPU count"):
+        load_resume(cfg, ctx)
 
 
 def test_no_resume_keeps_initial_stream_and_empty_adam(tmp_path):

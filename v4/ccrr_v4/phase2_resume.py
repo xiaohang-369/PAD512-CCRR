@@ -32,10 +32,12 @@ def load_resume(cfg, ctx):
         raise ValueError("Resume requires a completed, unchanged parent run")
     if cfg["update_modules"] != ["E1", "D1"]:
         raise ValueError("This continuation is for the joint E1/D1 experiment")
-    expected = {k: v for k, v in cfg.items() if k not in ("resume", "epochs")}
-    old = {k: v for k, v in original.items() if k != "epochs"}
+    expected = {k: v for k, v in cfg.items() if k not in ("resume", "epochs", "gpu_ids")}
+    old = {k: v for k, v in original.items() if k not in ("epochs", "gpu_ids")}
+    if len(cfg["gpu_ids"]) != len(original["gpu_ids"]):
+        raise ValueError("Resume keeps the original GPU count and per-rank batch")
     if expected != old or binding["config"] != original or report["binding"] != binding:
-        raise ValueError("Resume may only extend epochs; keep original training config")
+        raise ValueError("Resume may only extend epochs and remap physical GPUs")
     if binding["parents"] != ctx["parents"]:
         raise ValueError("Resume data/resources differ from the parent run")
     final = report["final_checkpoint"]

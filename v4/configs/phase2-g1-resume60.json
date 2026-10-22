@@ -4,7 +4,7 @@
   "baseline_evaluation": "/data/zwc/zyh/PAD512-CCRR-V4/runs/phase2-baseline.20261022-115452.3884663",
   "prepared": "/data/zwc/zyh/PAD512-CCRR-V4/data/phase1-pad512-b16/prepared.json",
   "gpu_ids": [
-    0,
+    1,
     2
   ],
   "cpu_threads": 4,
