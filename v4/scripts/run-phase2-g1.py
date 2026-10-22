@@ -30,7 +30,13 @@ output = (
     a.root.resolve()
     / "runs"
     / (
-        ("g1-e1only-" if encoder_only(cfg) else "g1-")
+        (
+            "g1-resume-"
+            if cfg.get("resume")
+            else "g1-e1only-"
+            if encoder_only(cfg)
+            else "g1-"
+        )
         + a.mode
         + "."
         + datetime.now().strftime("%Y%m%d-%H%M%S")

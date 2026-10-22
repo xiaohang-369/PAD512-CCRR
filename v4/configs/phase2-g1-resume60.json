@@ -1,0 +1,37 @@
+{
+  "schema": "ccrr-v4-phase2-g1-1",
+  "inspection_report": "/data/zwc/zyh/PAD512-CCRR-V4/runs/phase2-inspect.kdIjQI0Y/report.json",
+  "baseline_evaluation": "/data/zwc/zyh/PAD512-CCRR-V4/runs/phase2-baseline.20261022-115452.3884663",
+  "prepared": "/data/zwc/zyh/PAD512-CCRR-V4/data/phase1-pad512-b16/prepared.json",
+  "gpu_ids": [
+    0,
+    2
+  ],
+  "cpu_threads": 4,
+  "seed": 20261022,
+  "image_size": 512,
+  "global_batch_size": 16,
+  "precision": "float32",
+  "update_modules": [
+    "E1",
+    "D1"
+  ],
+  "supervisor_step": 8500,
+  "comparison_step": 7000,
+  "epochs": 60,
+  "learning_rate": 2e-06,
+  "supervision": {
+    "medical": 0.1,
+    "medical_kd": 0.5,
+    "identity": 0.1
+  },
+  "retrieval_temperature": 0.1,
+  "medical_acceptance_threshold": null,
+  "log_every_steps": 10,
+  "bank_log_every_images": 100,
+  "next_phase": "stop",
+  "resume": {
+    "run": "/data/zwc/zyh/PAD512-CCRR-V4/runs/g1-train.20261022-122453.3890568",
+    "sha256": "25ebc5e61e64c5249f61a23d51725a651e4534aae85cc2bad08602f16dbb0c74"
+  }
+}

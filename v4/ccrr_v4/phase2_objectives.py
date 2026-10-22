@@ -81,3 +81,17 @@ def validate_config(cfg):
         raise ValueError("Positive retrieval temperature required")
     if not 0 < cfg["learning_rate"] < float("inf"):
         raise ValueError("Positive learning rate required")
+    if "resume" in cfg:
+        spec = cfg["resume"]
+        if (
+            encoder_only(cfg)
+            or set(spec) != {"run", "sha256"}
+            or not isinstance(spec["run"], str)
+            or not spec["run"].startswith("/")
+            or not isinstance(spec["sha256"], str)
+            or len(spec["sha256"]) != 64
+            or any(c not in "0123456789abcdef" for c in spec["sha256"])
+        ):
+            raise ValueError(
+                "Resume requires a joint parent run and exact checkpoint SHA256"
+            )

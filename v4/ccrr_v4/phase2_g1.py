@@ -18,7 +18,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from .original import OriginalGrayscale, quantize8
 from .losses import author_loss
 from .phase1.data import load_prepared, batch_tensor, pad512_bytes, write_json
-from .phase1.optim import ContinuousBatches, TF1Adam
+from .phase1.optim import TF1Adam
+from .phase2_resume import load_resume, restore_training_state
 from .phase1.runner import digital_roundtrip, mean_metrics
 from .phase1.vgg import AuthorVGG
 from .phase2_baseline import numeric_policy, ordered_records
@@ -555,6 +556,7 @@ def run(cfg, output, mode, preflight=None):
         ).strip()
         ctx = load_context(cfg, device, rank)
         parameters = configure_training(ctx, cfg)
+        resume = load_resume(cfg, ctx)
         ctx["class_weights"] = ctx["datasets"]["fit"].class_weights().to(device)
         binding = dict(
             config=cfg,
@@ -570,6 +572,10 @@ def run(cfg, output, mode, preflight=None):
             decoder_parameters_frozen=encoder_only(cfg),
             update_modules=cfg["update_modules"],
         )
+        if resume is not None:
+            binding["resume"] = resume["evidence"]
+            if rank == 0:
+                print("G1_RESUME " + json.dumps(resume["evidence"]), flush=True)
         if rank == 0:
             write_json(output / "binding.json", binding)
         if mode == "train":
@@ -594,7 +600,15 @@ def run(cfg, output, mode, preflight=None):
                     dict(path=str(preflight), sha256=digest(Path(preflight))),
                 )
         else:
-            bank = build_fit_bank(ctx, cfg, output, device, rank, world, "initial")
+            original_bank = (
+                torch.load(resume["bank_path"], map_location=device, weights_only=True)
+                if resume is not None
+                else None
+            )
+            bank = build_fit_bank(
+                ctx, cfg, output, device, rank, world, "initial", original_bank
+            )
+            del original_bank
             if rank == 0:
                 torch.save(
                     {
@@ -615,7 +629,10 @@ def run(cfg, output, mode, preflight=None):
             else ctx["model"].decoder
         )
         optimizer = TF1Adam(parameters, lr=cfg["learning_rate"])
-        stream = ContinuousBatches(len(ctx["arrays"]["fit"]), 16, cfg["seed"])
+        start_epoch, start_step, stream = restore_training_state(
+            optimizer, cfg, len(ctx["arrays"]["fit"]), resume
+        )
+        del resume
         local_batch = 16 // world
         steps_per_epoch = math.ceil(len(ctx["arrays"]["fit"]) / 16)
         before = state_digest(ctx["model"])
@@ -626,10 +643,10 @@ def run(cfg, output, mode, preflight=None):
             torch.cuda.reset_peak_memory_stats(device)
             total, terms, norms = backward_step(ctx, cfg, enc, dec, x, ids, bank, world)
             grads = training_gradients(ctx, cfg)
-            if before != state_digest(ctx["model"]) or before != state_digest(
-                ctx["baseline"]
+            if before != state_digest(ctx["model"]) or (
+                start_epoch == 0 and before != state_digest(ctx["baseline"])
             ):
-                raise ValueError("Preflight changed original initialization")
+                raise ValueError("Preflight changed the starting model")
             metrics = mean_metrics(terms, total, world)
             check_frozen(ctx)
             write_json(
@@ -642,7 +659,7 @@ def run(cfg, output, mode, preflight=None):
             )
             optimizer.zero_grad(set_to_none=True)
             del x, terms, total
-            initial_eval = evaluate(ctx, output, device, rank, world, 0)
+            initial_eval = evaluate(ctx, output, device, rank, world, start_epoch)
             verify_files(ctx["parents"])
             barrier(device)
             if rank == 0:
@@ -655,7 +672,10 @@ def run(cfg, output, mode, preflight=None):
                         optimizer_updates=0,
                         frozen_models_unchanged=True,
                         parents_unchanged=True,
-                        initial_G1_equals_G0=True,
+                        initial_G1_equals_G0=start_epoch == 0,
+                        start_epoch=start_epoch,
+                        start_step=start_step,
+                        optimizer_state_updates=optimizer.param_groups[0]["updates"],
                         update_modules=cfg["update_modules"],
                         reconstruction_loss_enabled=True,
                         losses=metrics,
@@ -670,10 +690,10 @@ def run(cfg, output, mode, preflight=None):
                     ),
                 )
         else:
-            step = 0
+            step = start_step
             final = None
-            for epoch in range(1, cfg["epochs"] + 1):
-                if epoch > 1:
+            for epoch in range(start_epoch + 1, cfg["epochs"] + 1):
+                if epoch > start_epoch + 1:
                     bank = build_fit_bank(
                         ctx, cfg, output, device, rank, world, f"epoch{epoch:03d}", bank
                     )
@@ -722,6 +742,7 @@ def run(cfg, output, mode, preflight=None):
                             optimizer=optimizer.state_dict(),
                             epoch=epoch,
                             step=step,
+                            stream_position=stream.position,
                             binding=binding,
                         ),
                         path,
@@ -748,6 +769,9 @@ def run(cfg, output, mode, preflight=None):
                         mode="train",
                         training_completed=True,
                         optimizer_updates=step,
+                        optimizer_updates_this_run=step - start_step,
+                        start_epoch=start_epoch,
+                        start_step=start_step,
                         update_modules=cfg["update_modules"],
                         reconstruction_loss_enabled=True,
                         final_checkpoint=final,

@@ -15,7 +15,7 @@ def sha(path):
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--destination", required=True, type=Path)
-p.add_argument("--profile", choices=("joint", "e1only"), default="joint")
+p.add_argument("--profile", choices=("joint", "e1only", "resume60"), default="joint")
 a = p.parse_args()
 repo = Path(__file__).resolve().parents[2]
 if subprocess.check_output(
@@ -33,9 +33,13 @@ commit = subprocess.check_output(
     ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
 ).strip()
 short = commit[:7]
-profile = "g1-e1only" if a.profile == "e1only" else "g1"
+profile = {"joint": "g1", "e1only": "g1-e1only", "resume60": "g1-resume60"}[a.profile]
 config_name = "phase2-" + profile
-config_env = "V4_G1_E1ONLY_CONFIG" if a.profile == "e1only" else "V4_G1_CONFIG"
+config_env = {
+    "joint": "V4_G1_CONFIG",
+    "e1only": "V4_G1_E1ONLY_CONFIG",
+    "resume60": "V4_G1_RESUME_CONFIG",
+}[a.profile]
 dest = a.destination / f"PAD512-CCRR-V4-{profile}-{short}"
 dest.mkdir(parents=True, exist_ok=False)
 subprocess.run(
@@ -54,7 +58,11 @@ subprocess.run(
     ["git", "-C", str(repo), "bundle", "verify", str(dest / "code.bundle")], check=True
 )
 shutil.copyfile(repo / f"v4/configs/{config_name}.json", dest / f"{config_name}.json")
-readme = "PHASE2_G1_E1ONLY.md" if a.profile == "e1only" else "PHASE2_G1.md"
+readme = {
+    "joint": "PHASE2_G1.md",
+    "e1only": "PHASE2_G1_E1ONLY.md",
+    "resume60": "PHASE2_G1_RESUME.md",
+}[a.profile]
 shutil.copyfile(repo / "v4" / readme, dest / "README.md")
 config = json.loads((dest / f"{config_name}.json").read_text())
 (dest / "manifest.json").write_text(
@@ -63,6 +71,8 @@ config = json.loads((dest / f"{config_name}.json").read_text())
             commit=commit,
             scope="G1_encoder_only_comparison"
             if a.profile == "e1only"
+            else "G1_joint_resume_30_to_60"
+            if a.profile == "resume60"
             else "G1_supervised_continuation_only",
             update_modules=config["update_modules"],
             gpu_ids=config["gpu_ids"],
@@ -149,6 +159,9 @@ for name, source in (("install-code.sh", install), ("phase2.sh", runner)):
     path.chmod(0o755)
 if a.profile == "e1only":
     shutil.copyfile(repo / "v4/scripts/start-g1-e1only.sh", dest / "start-training.sh")
+    (dest / "start-training.sh").chmod(0o755)
+if a.profile == "resume60":
+    shutil.copyfile(repo / "v4/scripts/start-g1-resume.sh", dest / "start-training.sh")
     (dest / "start-training.sh").chmod(0o755)
 (dest / "SHA256SUMS").write_text(
     "".join(
