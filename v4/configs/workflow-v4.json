@@ -1,7 +1,7 @@
 {
   "schema": "ccrr-v4-workflow-design-1",
   "status": "design_not_training_cli",
-  "next_stage": "p1_original",
+  "next_stage": "p2_supervised",
   "protocol_fixture_counts_as_stage_completion": false,
   "notation": {
     "G0": "original_method_encoded_gray",
@@ -23,8 +23,9 @@
         "G0",
         "original_recovery_evaluation"
       ],
-      "state": "not_started",
-      "implementation": "phase1_cli_available_server_run_pending"
+      "state": "training_completed_reviewed_previews",
+      "implementation": "phase1_completed_120_epochs_10800_updates",
+      "baseline_checkpoint_sha256": "5d7f8c2bed98356166bbecebbc87a7fb4324e75126a347e6173788a7fcbef387"
     },
     {
       "id": "p2_supervised",
@@ -40,7 +41,8 @@
       ],
       "criterion": "lower_identity_recognition_and_acceptable_medical_loss",
       "loss_weights": null,
-      "state": "not_started"
+      "state": "resource_inspection_prepared_not_training",
+      "resource_config": "phase2-resources.json"
     },
     {
       "id": "p3_supervised_embedding",

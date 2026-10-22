@@ -1,0 +1,11 @@
+{
+  "schema": "ccrr-v4-phase2-inspection-1",
+  "baseline_run": "/data/zwc/zyh/PAD512-CCRR-V4/runs/phase1/train.20261021-182445.3665556",
+  "baseline_checkpoint_sha256": "5d7f8c2bed98356166bbecebbc87a7fb4324e75126a347e6173788a7fcbef387",
+  "parent_resources": "/data/zwc/zyh/PAD512-CCRR-V3/private/resources.json",
+  "separator": "/data/zwc/zyh/PAD512-CCRR-V3/runs/train/dev2-separation.20261020-184228.3079814",
+  "features": "/data/zwc/zyh/PAD512-CCRR-V2/runs/A0-features/A0-features.txSIuAiL",
+  "targets": "/data/zwc/zyh/PAD512-CCRR-V3/runs/targets/p2-public.20261020-123545.2940957",
+  "reference_review": "/data/zwc/zyh/PAD512-CCRR-V3/plans/separation-dev2-20261020/reference-review.json",
+  "supervisor_steps": [8500, 7000]
+}
