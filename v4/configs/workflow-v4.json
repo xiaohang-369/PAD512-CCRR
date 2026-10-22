@@ -41,8 +41,9 @@
       ],
       "criterion": "lower_identity_recognition_and_acceptable_medical_loss",
       "loss_weights": null,
-      "state": "resource_inspection_prepared_not_training",
-      "resource_config": "phase2-resources.json"
+      "state": "resources_verified_frozen_baseline_evaluation_prepared",
+      "resource_config": "phase2-resources.json",
+      "evaluation_config": "phase2-baseline.json"
     },
     {
       "id": "p3_supervised_embedding",

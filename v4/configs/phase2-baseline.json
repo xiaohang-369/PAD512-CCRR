@@ -1,0 +1,15 @@
+{
+  "schema": "ccrr-v4-phase2-baseline-1",
+  "inspection_report": "/data/zwc/zyh/PAD512-CCRR-V4/runs/phase2-inspect.kdIjQI0Y/report.json",
+  "prepared": "/data/zwc/zyh/PAD512-CCRR-V4/data/phase1-pad512-b16/prepared.json",
+  "role": "val_tune",
+  "views": ["rgb", "ordinary_gray8", "G0_png"],
+  "supervisor_steps": [8500, 7000],
+  "identity_reference": "public_ResNet50_initialization",
+  "gpu_ids": [0, 2],
+  "cpu_threads": 4,
+  "evaluation_batch_size": 1,
+  "log_every_images": 10,
+  "seed": 20261022,
+  "training_enabled": false
+}
