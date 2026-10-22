@@ -10,7 +10,7 @@ import sys
 
 repo = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(repo / "v4"))
-from ccrr_v4.phase2_objectives import validate_config  # noqa: E402
+from ccrr_v4.phase2_objectives import validate_config, encoder_only  # noqa: E402
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("mode", choices=("preflight", "train"))
@@ -30,7 +30,7 @@ output = (
     a.root.resolve()
     / "runs"
     / (
-        "g1-"
+        ("g1-e1only-" if encoder_only(cfg) else "g1-")
         + a.mode
         + "."
         + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -73,6 +73,10 @@ status = dict(state="running", mode=a.mode, training_requested=a.mode == "train"
 status_path = output / "status.json"
 status_path.write_text(json.dumps(status, indent=2) + "\n")
 print(f"G1_RUN={output}", flush=True)
+print(
+    f"UPDATE_MODULES={cfg['update_modules']} RGB_RECONSTRUCTION_LOSS={not encoder_only(cfg)}",
+    flush=True,
+)
 print(
     f"GPUS={cfg['gpu_ids']} GLOBAL_BATCH=16 IMAGE=512 EPOCHS={cfg['epochs']}",
     flush=True,

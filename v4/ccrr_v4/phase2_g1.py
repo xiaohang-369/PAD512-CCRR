@@ -27,6 +27,8 @@ from .phase2_objectives import (
     digital_supervision,
     medical_objective,
     retrieval_confusion,
+    encoder_only,
+    gray_objective,
 )
 from .verify import REPO, read, digest, state_digest, finite_gradients, source_check
 
@@ -199,6 +201,30 @@ def check_frozen(ctx):
             raise ValueError(f"Frozen model mutated: {name}")
 
 
+def configure_training(ctx, cfg):
+    ctx["encoder_only"] = encoder_only(cfg)
+    if ctx["encoder_only"]:
+        decoder = ctx["model"].decoder.eval().requires_grad_(False)
+        ctx["frozen"]["unused_decoder_copy"] = decoder
+        ctx["frozen_hashes"]["unused_decoder_copy"] = state_digest(decoder)
+        return list(ctx["model"].encoder.parameters())
+    return list(ctx["model"].parameters())
+
+
+def training_gradients(ctx, cfg):
+    if not encoder_only(cfg):
+        return finite_gradients(ctx["model"])
+    grads = [p.grad for p in ctx["model"].encoder.parameters()]
+    if not all(g is not None and torch.isfinite(g).all() for g in grads):
+        raise ValueError("Missing/nonfinite E1 gradient")
+    norm = sum(float(g.abs().sum()) for g in grads)
+    if norm <= 0 or any(
+        p.requires_grad or p.grad is not None for p in ctx["model"].decoder.parameters()
+    ):
+        raise ValueError("Encoder-only gradient/decoder freeze violation")
+    return dict(encoder=norm, decoder=0.0)
+
+
 @torch.no_grad()
 def build_fit_bank(ctx, cfg, output, device, rank, world, tag, initial=None):
     """Only fit samples; immutable initial RGB/G0 targets, epoch-refreshed G1 bank."""
@@ -306,19 +332,28 @@ def backward_step(ctx, cfg, enc, dec, x, ids, bank, world):
     grad, new_terms, norms = supervision_gradient(ctx, cfg, g, ids, bank)
     # Teacher graphs have been freed before the large original decoder graph exists.
     with numeric_policy(False):
-        restored = dec(g)
         with torch.no_grad():
             target = ctx["vgg"](x)
-        total, terms = author_loss(
-            x,
-            g,
-            restored,
-            target,
-            ctx["vgg"](g),
-            2,
-            ctx["author_cfg"]["stages"][1]["weights"],
-            distributed=world > 1,
-        )
+        if encoder_only(cfg):
+            total, terms = gray_objective(
+                x,
+                g,
+                target,
+                ctx["vgg"](g),
+                ctx["author_cfg"]["stages"][1]["weights"],
+                distributed=world > 1,
+            )
+        else:
+            total, terms = author_loss(
+                x,
+                g,
+                dec(g),
+                target,
+                ctx["vgg"](g),
+                2,
+                ctx["author_cfg"]["stages"][1]["weights"],
+                distributed=world > 1,
+            )
         if not torch.isfinite(total) or not all(
             torch.isfinite(v) for v in new_terms.values()
         ):
@@ -345,14 +380,10 @@ def save_preview(ctx, output, device, epoch):
                 / 2
                 * x.new_tensor([0.2989, 0.5870, 0.1140])[None, :, None, None]
             ).sum(1, keepdim=True) * 2 - 1
-            panels = (
-                x,
-                y,
-                g0,
-                g1,
-                ctx["model"].decoder(g1),
-                ctx["baseline"].decoder(g1),
-            )
+            panels = (x, y, g0, g1)
+            if not ctx.get("encoder_only", False):
+                panels += (ctx["model"].decoder(g1),)
+            panels += (ctx["baseline"].decoder(g1),)
             rows.append(
                 np.concatenate(
                     [
@@ -373,7 +404,9 @@ def save_preview(ctx, output, device, epoch):
         dict(
             role="val_tune",
             indices=list(range(len(rows))),
-            columns=["RGB", "ordinary_gray8", "G0", "G1", "D1_G1", "D0_G1"],
+            columns=["RGB", "ordinary_gray8", "G0", "G1"]
+            + ([] if ctx.get("encoder_only", False) else ["D1_G1"])
+            + ["D0_G1"],
             private_images=True,
         ),
     )
@@ -394,9 +427,11 @@ def evaluate(ctx, output, device, rank, world, epoch):
         x = item["x"].unsqueeze(0).to(device)
         with numeric_policy(False):
             g1 = digital_roundtrip(ctx["model"].encoder(x * 2 - 1))
-            r1 = (ctx["model"].decoder(g1) + 1) / 2
             r0 = (ctx["baseline"].decoder(g1) + 1) / 2
             g0 = digital_roundtrip(ctx["baseline"].encoder(x * 2 - 1))
+            decoded = {"D0_G1": r0}
+            if not ctx.get("encoder_only", False):
+                decoded["D1_G1"] = (ctx["model"].decoder(g1) + 1) / 2
         with numeric_policy(True):
             raw, cov, _ = ctx["panderm"]((g1 + 1) / 2, [item["rect"]])
             probs = {
@@ -408,7 +443,7 @@ def evaluate(ctx, output, device, rank, world, epoch):
             )
             recovered_embeddings = {
                 name: ctx["reid"](image, [item["rect"]])["embedding"][0].cpu().tolist()
-                for name, image in (("D0_G1", r0), ("D1_G1", r1))
+                for name, image in decoded.items()
             }
 
         def psnr(y):
@@ -422,11 +457,12 @@ def evaluate(ctx, output, device, rank, world, epoch):
                 probabilities=probs,
                 embedding=emb,
                 recovered_embeddings=recovered_embeddings,
-                D1_psnr=psnr(r1),
                 D0_direct_psnr=psnr(r0),
                 G1_G0_gray_mae=float((g1 - g0).abs().mean() * 127.5),
             )
         )
+        if "D1_G1" in decoded:
+            rows[-1]["D1_psnr"] = psnr(decoded["D1_G1"])
     write_json(output / f"eval-{epoch:03d}-rank{rank}.json", rows)
     barrier(device)
     summary = None
@@ -455,7 +491,7 @@ def evaluate(ctx, output, device, rank, world, epoch):
             )
             for name, gal in (("G1_to_rgb", rgb), ("G1_to_G1", emb))
         }
-        for name in ("D0_G1", "D1_G1"):
+        for name in rows[0]["recovered_embeddings"]:
             rec = np.asarray(
                 [r["recovered_embeddings"][name] for r in rows], dtype=np.float64
             )
@@ -489,10 +525,13 @@ def evaluate(ctx, output, device, rank, world, epoch):
             recovery={
                 k: float(np.mean([r[k] for r in rows]))
                 for k in ("D1_psnr", "D0_direct_psnr", "G1_G0_gray_mae")
+                if k in rows[0]
             },
             medical_acceptance_threshold=None,
             scientific_acceptance="not_evaluated",
             fixed_training_reference_not_independent_privacy_acceptance=True,
+            update_modules=["E1"] if ctx.get("encoder_only", False) else ["E1", "D1"],
+            decoder_results_are_direct_read_diagnostics_not_full_authorized_recovery=True,
         )
         write_json(
             output / f"evaluation-{epoch:03d}.json", {**summary, "p2_details": linkage}
@@ -526,6 +565,7 @@ def run(cfg, output, mode, preflight=None):
             ["git", "-C", str(REPO), "rev-parse", "HEAD"], text=True
         ).strip()
         ctx = load_context(cfg, device, rank)
+        parameters = configure_training(ctx, cfg)
         ctx["class_weights"] = ctx["datasets"]["fit"].class_weights().to(device)
         binding = dict(
             config=cfg,
@@ -535,6 +575,10 @@ def run(cfg, output, mode, preflight=None):
             original_loss_weights=ctx["author_cfg"]["stages"][1]["weights"],
             numeric_policy="E_D_VGG_FP32_no_TF32_teachers_cudnn_TF32_no_matmul_TF32",
             new_supervision_quantization="author_8bit_forward_STE_backward_V4_only",
+            effective_reconstruction_weight=0.0
+            if encoder_only(cfg)
+            else ctx["author_cfg"]["stages"][1]["weights"]["reconstruction"],
+            update_modules=cfg["update_modules"],
         )
         if rank == 0:
             write_json(output / "binding.json", binding)
@@ -577,20 +621,21 @@ def run(cfg, output, mode, preflight=None):
         )
         dec = (
             DDP(ctx["model"].decoder, device_ids=[local])
-            if world > 1
+            if world > 1 and not encoder_only(cfg)
             else ctx["model"].decoder
         )
-        optimizer = TF1Adam(ctx["model"].parameters(), lr=cfg["learning_rate"])
+        optimizer = TF1Adam(parameters, lr=cfg["learning_rate"])
         stream = ContinuousBatches(len(ctx["arrays"]["fit"]), 16, cfg["seed"])
         local_batch = 16 // world
         steps_per_epoch = math.ceil(len(ctx["arrays"]["fit"]) / 16)
         before = state_digest(ctx["model"])
+        encoder_before = state_digest(ctx["model"].encoder)
         if mode == "preflight":
             ids = stream.next()[rank * local_batch : (rank + 1) * local_batch]
             x = batch_tensor(ctx["arrays"]["fit"], ids, device)
             torch.cuda.reset_peak_memory_stats(device)
             total, terms, norms = backward_step(ctx, cfg, enc, dec, x, ids, bank, world)
-            grads = finite_gradients(ctx["model"])
+            grads = training_gradients(ctx, cfg)
             if before != state_digest(ctx["model"]) or before != state_digest(
                 ctx["baseline"]
             ):
@@ -621,6 +666,8 @@ def run(cfg, output, mode, preflight=None):
                         frozen_models_unchanged=True,
                         parents_unchanged=True,
                         initial_G1_equals_G0=True,
+                        update_modules=cfg["update_modules"],
+                        reconstruction_loss_enabled=not encoder_only(cfg),
                         losses=metrics,
                         initial_evaluation=initial_eval,
                         ranks=[
@@ -648,9 +695,18 @@ def run(cfg, output, mode, preflight=None):
                     total, terms, norms = backward_step(
                         ctx, cfg, enc, dec, x, ids, bank, world
                     )
-                    finite_gradients(ctx["model"])
+                    training_gradients(ctx, cfg)
                     optimizer.step()
                     step += 1
+                    if step == 1 and encoder_only(cfg):
+                        if state_digest(ctx["model"].encoder) == encoder_before:
+                            raise ValueError("First optimizer update did not change E1")
+                        check_frozen(ctx)
+                        if rank == 0:
+                            print(
+                                "E1_UPDATE_VERIFIED encoder_changed=True decoder_changed=False",
+                                flush=True,
+                            )
                     metrics = mean_metrics(terms, total, world)
                     for k, v in metrics.items():
                         sums[k] = sums.get(k, 0.0) + v
@@ -669,7 +725,9 @@ def run(cfg, output, mode, preflight=None):
                     path = output / f"g1-epoch-{epoch:03d}.pt"
                     torch.save(
                         dict(
-                            schema="ccrr-v4-g1-checkpoint-1",
+                            schema="ccrr-v4-g1-e1only-checkpoint-1"
+                            if encoder_only(cfg)
+                            else "ccrr-v4-g1-checkpoint-1",
                             model=ctx["model"].state_dict(),
                             optimizer=optimizer.state_dict(),
                             epoch=epoch,
@@ -700,6 +758,8 @@ def run(cfg, output, mode, preflight=None):
                         mode="train",
                         training_completed=True,
                         optimizer_updates=step,
+                        update_modules=cfg["update_modules"],
+                        reconstruction_loss_enabled=not encoder_only(cfg),
                         final_checkpoint=final,
                         final_validation=validation,
                         binding=binding,

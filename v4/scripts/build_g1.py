@@ -15,6 +15,7 @@ def sha(path):
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("--destination", required=True, type=Path)
+p.add_argument("--profile", choices=("joint", "e1only"), default="joint")
 a = p.parse_args()
 repo = Path(__file__).resolve().parents[2]
 if subprocess.check_output(
@@ -32,7 +33,10 @@ commit = subprocess.check_output(
     ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
 ).strip()
 short = commit[:7]
-dest = a.destination / f"PAD512-CCRR-V4-g1-{short}"
+profile = "g1-e1only" if a.profile == "e1only" else "g1"
+config_name = "phase2-" + profile
+config_env = "V4_G1_E1ONLY_CONFIG" if a.profile == "e1only" else "V4_G1_CONFIG"
+dest = a.destination / f"PAD512-CCRR-V4-{profile}-{short}"
 dest.mkdir(parents=True, exist_ok=False)
 subprocess.run(
     [
@@ -49,13 +53,21 @@ subprocess.run(
 subprocess.run(
     ["git", "-C", str(repo), "bundle", "verify", str(dest / "code.bundle")], check=True
 )
-shutil.copyfile(repo / "v4/configs/phase2-g1.json", dest / "phase2-g1.json")
-shutil.copyfile(repo / "v4/PHASE2_G1.md", dest / "README.md")
+shutil.copyfile(repo / f"v4/configs/{config_name}.json", dest / f"{config_name}.json")
+readme = "PHASE2_G1_E1ONLY.md" if a.profile == "e1only" else "PHASE2_G1.md"
+shutil.copyfile(repo / "v4" / readme, dest / "README.md")
+config = json.loads((dest / f"{config_name}.json").read_text())
 (dest / "manifest.json").write_text(
     json.dumps(
         dict(
             commit=commit,
-            scope="G1_supervised_continuation_only",
+            scope="G1_encoder_only_comparison"
+            if a.profile == "e1only"
+            else "G1_supervised_continuation_only",
+            update_modules=config["update_modules"],
+            gpu_ids=config["gpu_ids"],
+            rgb_reconstruction_loss=a.profile != "e1only",
+            config_env=config_env,
             server_execution="pending",
             original_phase1_unchanged=True,
             new_network=False,
@@ -95,7 +107,7 @@ if [[ ! -e "$V4_RELEASE" ]]; then
 fi
 test "$(git -C "$V4_RELEASE" rev-parse HEAD)" = "$V4_COMMIT"
 test -z "$(git -C "$V4_RELEASE" status --porcelain)"
-"$V4_PYTHON" -B - "$V4_PACKAGE/phase2-g1.json" "$V4_ROOT/configs/phase2-g1-__SHORT__.json" <<'PYIN'
+"$V4_PYTHON" -B - "$V4_PACKAGE/__CONFIG__.json" "$V4_ROOT/configs/__CONFIG__-__SHORT__.json" <<'PYIN'
 from pathlib import Path
 import sys
 source,dest=map(Path,sys.argv[1:])
@@ -121,14 +133,22 @@ umask 077
 V4_ROOT=${V4_ROOT:-/data/zwc/zyh/PAD512-CCRR-V4}
 V4_PYTHON=${V4_PYTHON:-/home/zwc/anaconda3/envs/ccrr_v2/bin/python}
 V4_RELEASE="$V4_ROOT/releases/__COMMIT__"
-V4_G1_CONFIG=${V4_G1_CONFIG:-$V4_ROOT/configs/phase2-g1-__SHORT__.json}
+__CONFIG_ENV__=${__CONFIG_ENV__:-$V4_ROOT/configs/__CONFIG__-__SHORT__.json}
 test "$(git -C "$V4_RELEASE" rev-parse HEAD)" = '__COMMIT__'
-exec "$V4_PYTHON" -B "$V4_RELEASE/v4/scripts/run-phase2-g1.py" --config "$V4_G1_CONFIG" --root "$V4_ROOT" "$@"
+exec "$V4_PYTHON" -B "$V4_RELEASE/v4/scripts/run-phase2-g1.py" --config "$__CONFIG_ENV__" --root "$V4_ROOT" "$@"
 """
 for name, source in (("install-code.sh", install), ("phase2.sh", runner)):
     path = dest / name
-    path.write_text(source.replace("__COMMIT__", commit).replace("__SHORT__", short))
+    path.write_text(
+        source.replace("__COMMIT__", commit)
+        .replace("__SHORT__", short)
+        .replace("__CONFIG__", config_name)
+        .replace("__CONFIG_ENV__", config_env)
+    )
     path.chmod(0o755)
+if a.profile == "e1only":
+    shutil.copyfile(repo / "v4/scripts/start-g1-e1only.sh", dest / "start-training.sh")
+    (dest / "start-training.sh").chmod(0o755)
 (dest / "SHA256SUMS").write_text(
     "".join(
         f"{sha(path)}  {path.name}\n"

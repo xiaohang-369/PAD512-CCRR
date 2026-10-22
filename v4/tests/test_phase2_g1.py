@@ -14,8 +14,16 @@ from ccrr_v4.phase2_objectives import (
     medical_objective,
     retrieval_confusion,
     validate_config,
+    encoder_only,
+    gray_objective,
 )
-from ccrr_v4.phase2_g1 import backward_step
+from ccrr_v4.phase2_g1 import (
+    backward_step,
+    configure_training,
+    training_gradients,
+    check_frozen,
+)
+from ccrr_v4.phase1.optim import TF1Adam
 from ccrr_v4.losses import author_loss
 from ccrr_v4.verify import state_digest
 
@@ -59,7 +67,7 @@ class TinyVGG(nn.Module):
         return F.avg_pool2d(x.expand(-1, 3, -1, -1), 2)
 
 
-def fixture():
+def fixture(e1only=False):
     torch.manual_seed(171)
     cfg = json.loads(
         (Path(__file__).resolve().parents[1] / "configs/phase2-g1.json").read_text()
@@ -93,21 +101,29 @@ def fixture():
         target=torch.randn(8, 6).softmax(1),
         rects=[(0, 0, 8, 8)] * 8,
     )
+    if e1only:
+        cfg.update(
+            schema="ccrr-v4-phase2-g1-e1only-1", update_modules=["E1"], gpu_ids=[1, 3]
+        )
+    ctx["frozen"] = {
+        "panderm": ctx["panderm"],
+        "reid": ctx["reid"],
+        "teacher": ctx["teachers"]["8500"],
+    }
+    ctx["frozen_hashes"] = {k: state_digest(v) for k, v in ctx["frozen"].items()}
+    configure_training(ctx, cfg)
     return cfg, ctx, bank, torch.rand(4, 3, 8, 8) * 2 - 1
 
 
 def direct_backward(ctx, cfg, x, bank, ids):
     g = ctx["model"].encoder(x)
-    restored = ctx["model"].decoder(g)
-    original, _ = author_loss(
-        x,
-        g,
-        restored,
-        ctx["vgg"](x),
-        ctx["vgg"](g),
-        2,
-        ctx["author_cfg"]["stages"][1]["weights"],
-    )
+    weights = ctx["author_cfg"]["stages"][1]["weights"]
+    if encoder_only(cfg):
+        original, _ = gray_objective(x, g, ctx["vgg"](x), ctx["vgg"](g), weights)
+    else:
+        original, _ = author_loss(
+            x, g, ctx["model"].decoder(g), ctx["vgg"](x), ctx["vgg"](g), 2, weights
+        )
     image = digital_supervision(g)
     raw, cov, _ = ctx["panderm"](image, bank["rects"])
     med = medical_objective(
@@ -134,8 +150,9 @@ def direct_backward(ctx, cfg, x, bank, ids):
     return loss
 
 
-def test_sequential_vjp_equals_full_graph_all_parameters_and_no_teacher_grads():
-    cfg, ctx, bank, x = fixture()
+@pytest.mark.parametrize("e1only", [False, True])
+def test_sequential_vjp_equals_full_graph_all_parameters_and_no_teacher_grads(e1only):
+    cfg, ctx, bank, x = fixture(e1only)
     direct = deepcopy(ctx)
     snapshots = {k: state_digest(ctx[k]) for k in ("panderm", "reid")}
     actual, _, norms = backward_step(
@@ -144,7 +161,10 @@ def test_sequential_vjp_equals_full_graph_all_parameters_and_no_teacher_grads():
     expected = direct_backward(direct, cfg, x, bank, [0, 1, 2, 3])
     torch.testing.assert_close(actual, expected.detach())
     for a, b in zip(ctx["model"].parameters(), direct["model"].parameters()):
-        torch.testing.assert_close(a.grad, b.grad, rtol=2e-5, atol=1e-6)
+        if a.requires_grad:
+            torch.testing.assert_close(a.grad, b.grad, rtol=2e-5, atol=1e-6)
+        else:
+            assert a.grad is None and b.grad is None
     assert all(v > 0 for v in norms.values())
     for key in ("panderm", "reid"):
         assert state_digest(ctx[key]) == snapshots[key]
@@ -205,7 +225,7 @@ def test_config_keeps_user_scope_but_epochs_and_devices_are_configurable():
             validate_config({**cfg, key: value})
 
 
-def ddp_worker(rank, init_file, result):
+def ddp_worker(rank, init_file, result, e1only):
     import torch.distributed as dist
     from torch.nn.parallel import DistributedDataParallel
 
@@ -214,9 +234,13 @@ def ddp_worker(rank, init_file, result):
         "gloo", init_method="file://" + init_file, rank=rank, world_size=2
     )
     try:
-        cfg, ctx, bank, x = fixture()
+        cfg, ctx, bank, x = fixture(e1only)
         encoder = DistributedDataParallel(ctx["model"].encoder)
-        decoder = DistributedDataParallel(ctx["model"].decoder)
+        decoder = (
+            ctx["model"].decoder
+            if e1only
+            else DistributedDataParallel(ctx["model"].decoder)
+        )
         ids = [rank * 2, rank * 2 + 1]
         backward_step(ctx, cfg, encoder, decoder, x[ids], ids, bank, 2)
         torch.save([p.grad for p in ctx["model"].parameters()], result + str(rank))
@@ -224,18 +248,78 @@ def ddp_worker(rank, init_file, result):
         dist.destroy_process_group()
 
 
-def test_two_rank_gradients_match_full_batch_without_accumulation(tmp_path):
+@pytest.mark.parametrize("e1only", [False, True])
+def test_two_rank_gradients_match_full_batch_without_accumulation(tmp_path, e1only):
     import torch.multiprocessing as mp
 
     mp.spawn(
         ddp_worker,
-        args=(str(tmp_path / "init"), str(tmp_path / "grad")),
+        args=(str(tmp_path / "init"), str(tmp_path / "grad"), e1only),
         nprocs=2,
         join=True,
     )
-    cfg, ctx, bank, x = fixture()
+    cfg, ctx, bank, x = fixture(e1only)
     direct_backward(ctx, cfg, x, bank, list(range(4)))
     for rank in (0, 1):
         grads = torch.load(str(tmp_path / "grad") + str(rank), weights_only=True)
         for expected, actual in zip(ctx["model"].parameters(), grads):
-            torch.testing.assert_close(actual, expected.grad, rtol=2e-5, atol=1e-6)
+            if expected.requires_grad:
+                torch.testing.assert_close(actual, expected.grad, rtol=2e-5, atol=1e-6)
+            else:
+                assert actual is None and expected.grad is None
+
+
+def test_encoder_only_updates_encoder_without_decoder_forward_or_teacher_updates():
+    cfg, ctx, bank, x = fixture(True)
+    parameters = configure_training(ctx, cfg)
+    assert {id(p) for p in parameters} == {
+        id(p) for p in ctx["model"].encoder.parameters()
+    }
+    optimizer = TF1Adam(parameters, lr=cfg["learning_rate"])
+    before = state_digest(ctx["model"].encoder)
+
+    def forbidden(*args):
+        raise AssertionError("E1-only training must not invoke decoder")
+
+    _, terms, norms = backward_step(
+        ctx, cfg, ctx["model"].encoder, forbidden, x, [0, 1, 2, 3], bank, 1
+    )
+    assert "mse" not in terms
+    assert all(v > 0 for v in norms.values())
+    assert training_gradients(ctx, cfg)["decoder"] == 0
+    optimizer.step()
+    assert before != state_digest(ctx["model"].encoder)
+    check_frozen(ctx)
+
+
+def test_gray_objective_preserves_original_gray_values_and_gradients():
+    cfg, ctx, _, x = fixture()
+    g = ctx["model"].encoder(x)
+    weights = ctx["author_cfg"]["stages"][1]["weights"]
+    full, old = author_loss(
+        x, g, ctx["model"].decoder(g), ctx["vgg"](x), ctx["vgg"](g), 2, weights
+    )
+    actual, terms = gray_objective(x, g, ctx["vgg"](x), ctx["vgg"](g), weights)
+    expected = full - weights["reconstruction"] * old["mse"]
+    torch.testing.assert_close(actual, expected)
+    for key, value in terms.items():
+        torch.testing.assert_close(value, old[key], rtol=0, atol=0)
+    grad = torch.autograd.grad(actual, g, retain_graph=True)[0]
+    torch.testing.assert_close(
+        grad, torch.autograd.grad(expected, g)[0], rtol=2e-5, atol=1e-6
+    )
+
+
+def test_comparison_config_changes_only_training_profile_and_devices():
+    root = Path(__file__).resolve().parents[1] / "configs"
+    joint = json.loads((root / "phase2-g1.json").read_text())
+    solo = json.loads((root / "phase2-g1-e1only.json").read_text())
+    validate_config(solo)
+    assert {k for k in joint if joint[k] != solo[k]} == {
+        "schema",
+        "update_modules",
+        "gpu_ids",
+    }
+    assert solo["gpu_ids"] == [1, 3] and solo["update_modules"] == ["E1"]
+    with pytest.raises(ValueError):
+        validate_config({**solo, "update_modules": ["E1", "D1"]})

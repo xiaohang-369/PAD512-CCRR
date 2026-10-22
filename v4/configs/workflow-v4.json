@@ -46,12 +46,39 @@
         "medical_kd": 0.5,
         "identity": 0.1
       },
-      "state": "baseline_evaluated_g1_implementation_ready_server_pending",
+      "state": "joint_running_e1only_comparison_prepared_server_pending",
       "resource_config": "phase2-resources.json",
       "evaluation_config": "phase2-baseline.json",
       "training_config": "phase2-g1.json",
       "medical_acceptance_threshold": null,
-      "development_epochs": 30
+      "development_epochs": 30,
+      "training_profiles": [
+        {
+          "config": "phase2-g1.json",
+          "update_modules": [
+            "E1",
+            "D1"
+          ],
+          "rgb_reconstruction_loss": true,
+          "gpu_ids": [
+            0,
+            2
+          ],
+          "state": "running_final_report_pending"
+        },
+        {
+          "config": "phase2-g1-e1only.json",
+          "update_modules": [
+            "E1"
+          ],
+          "rgb_reconstruction_loss": false,
+          "gpu_ids": [
+            1,
+            3
+          ],
+          "state": "implementation_prepared_server_pending"
+        }
+      ]
     },
     {
       "id": "p3_supervised_embedding",
@@ -82,7 +109,8 @@
         "D0(normalize(G0_hat))"
       ],
       "recheck": "p3_identity_and_medical_metrics_after_WR_training",
-      "state": "not_started"
+      "state": "not_started",
+      "image_restoration_requirement": "approximate_allowed_measure_G0_and_RGB_error"
     }
   ]
 }
