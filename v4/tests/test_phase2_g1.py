@@ -14,8 +14,6 @@ from ccrr_v4.phase2_objectives import (
     medical_objective,
     retrieval_confusion,
     validate_config,
-    encoder_only,
-    gray_objective,
 )
 from ccrr_v4.phase2_g1 import (
     backward_step,
@@ -118,12 +116,9 @@ def fixture(e1only=False):
 def direct_backward(ctx, cfg, x, bank, ids):
     g = ctx["model"].encoder(x)
     weights = ctx["author_cfg"]["stages"][1]["weights"]
-    if encoder_only(cfg):
-        original, _ = gray_objective(x, g, ctx["vgg"](x), ctx["vgg"](g), weights)
-    else:
-        original, _ = author_loss(
-            x, g, ctx["model"].decoder(g), ctx["vgg"](x), ctx["vgg"](g), 2, weights
-        )
+    original, _ = author_loss(
+        x, g, ctx["model"].decoder(g), ctx["vgg"](x), ctx["vgg"](g), 2, weights
+    )
     image = digital_supervision(g)
     raw, cov, _ = ctx["panderm"](image, bank["rects"])
     med = medical_objective(
@@ -269,7 +264,7 @@ def test_two_rank_gradients_match_full_batch_without_accumulation(tmp_path, e1on
                 assert actual is None and expected.grad is None
 
 
-def test_encoder_only_updates_encoder_without_decoder_forward_or_teacher_updates():
+def test_encoder_only_updates_encoder_with_fixed_decoder_and_same_losses():
     cfg, ctx, bank, x = fixture(True)
     parameters = configure_training(ctx, cfg)
     assert {id(p) for p in parameters} == {
@@ -277,14 +272,10 @@ def test_encoder_only_updates_encoder_without_decoder_forward_or_teacher_updates
     }
     optimizer = TF1Adam(parameters, lr=cfg["learning_rate"])
     before = state_digest(ctx["model"].encoder)
-
-    def forbidden(*args):
-        raise AssertionError("E1-only training must not invoke decoder")
-
     _, terms, norms = backward_step(
-        ctx, cfg, ctx["model"].encoder, forbidden, x, [0, 1, 2, 3], bank, 1
+        ctx, cfg, ctx["model"].encoder, ctx["model"].decoder, x, [0, 1, 2, 3], bank, 1
     )
-    assert "mse" not in terms
+    assert terms["mse"] > 0
     assert all(v > 0 for v in norms.values())
     assert training_gradients(ctx, cfg)["decoder"] == 0
     optimizer.step()
@@ -292,22 +283,49 @@ def test_encoder_only_updates_encoder_without_decoder_forward_or_teacher_updates
     check_frozen(ctx)
 
 
-def test_gray_objective_preserves_original_gray_values_and_gradients():
-    cfg, ctx, _, x = fixture()
+def test_freezing_decoder_preserves_first_step_encoder_gradients_and_loss_values():
+    joint_cfg, joint, bank, x = fixture(False)
+    solo_cfg, solo, _, _ = fixture(True)
+    joint_total, joint_terms, _ = backward_step(
+        joint,
+        joint_cfg,
+        joint["model"].encoder,
+        joint["model"].decoder,
+        x,
+        [0, 1, 2, 3],
+        bank,
+        1,
+    )
+    solo_total, solo_terms, _ = backward_step(
+        solo,
+        solo_cfg,
+        solo["model"].encoder,
+        solo["model"].decoder,
+        x,
+        [0, 1, 2, 3],
+        bank,
+        1,
+    )
+    torch.testing.assert_close(joint_total, solo_total, rtol=0, atol=0)
+    assert joint_terms.keys() == solo_terms.keys()
+    for key in joint_terms:
+        torch.testing.assert_close(joint_terms[key], solo_terms[key], rtol=0, atol=0)
+    for p, q in zip(
+        joint["model"].encoder.parameters(), solo["model"].encoder.parameters()
+    ):
+        torch.testing.assert_close(p.grad, q.grad, rtol=0, atol=0)
+    assert all(p.grad is None for p in solo["model"].decoder.parameters())
+    assert all(p.grad is not None for p in joint["model"].decoder.parameters())
+
+
+def test_fixed_decoder_reconstruction_alone_backpropagates_to_encoder():
+    _, ctx, _, x = fixture(True)
     g = ctx["model"].encoder(x)
-    weights = ctx["author_cfg"]["stages"][1]["weights"]
-    full, old = author_loss(
-        x, g, ctx["model"].decoder(g), ctx["vgg"](x), ctx["vgg"](g), 2, weights
+    F.mse_loss(ctx["model"].decoder(g), x).backward()
+    assert (
+        training_gradients(ctx, {"schema": "ccrr-v4-phase2-g1-e1only-1"})["encoder"] > 0
     )
-    actual, terms = gray_objective(x, g, ctx["vgg"](x), ctx["vgg"](g), weights)
-    expected = full - weights["reconstruction"] * old["mse"]
-    torch.testing.assert_close(actual, expected)
-    for key, value in terms.items():
-        torch.testing.assert_close(value, old[key], rtol=0, atol=0)
-    grad = torch.autograd.grad(actual, g, retain_graph=True)[0]
-    torch.testing.assert_close(
-        grad, torch.autograd.grad(expected, g)[0], rtol=2e-5, atol=1e-6
-    )
+    check_frozen(ctx)
 
 
 def test_comparison_config_changes_only_training_profile_and_devices():

@@ -20,7 +20,8 @@ if len(reports)!=1:
 p=Path(reports[0])
 r=json.loads(p.read_text())
 assert r['passed'] and r['mode']=='preflight' and r['optimizer_updates']==0
-assert r['update_modules']==['E1'] and r['reconstruction_loss_enabled'] is False
+assert r['update_modules']==['E1'] and r['reconstruction_loss_enabled'] is True
+assert r['binding']['decoder_parameters_frozen'] is True
 assert r['binding']['config']['schema']=='ccrr-v4-phase2-g1-e1only-1'
 print(p)
 PY

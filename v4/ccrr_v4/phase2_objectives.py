@@ -4,7 +4,6 @@ import math
 import torch
 from torch.nn import functional as F
 from .original import quantize8
-from .losses import source_terms
 
 
 def digital_supervision(g):
@@ -50,20 +49,6 @@ def retrieval_confusion(query, gallery, indices, temperature):
 
 def encoder_only(cfg):
     return cfg["schema"] == "ccrr-v4-phase2-g1-e1only-1"
-
-
-def gray_objective(x, g, target_features, gray_features, weights, *, distributed=False):
-    """Author gray terms only. No decoder call and no RGB reconstruction target.
-
-    source_terms accepts RGB for its MSE term; supplying x makes that unused
-    term constant, then removes it. The remaining author arithmetic is unchanged.
-    """
-    terms = source_terms(x, g, x, distributed=distributed)
-    del terms["mse"]
-    terms["vgg"] = F.mse_loss(gray_features, target_features.detach())
-    return sum(
-        weights[k] * terms[k] for k in ("vgg", "variation", "lightness", "quantization")
-    ), terms
 
 
 def validate_config(cfg):

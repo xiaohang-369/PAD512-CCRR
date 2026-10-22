@@ -74,7 +74,7 @@ status_path = output / "status.json"
 status_path.write_text(json.dumps(status, indent=2) + "\n")
 print(f"G1_RUN={output}", flush=True)
 print(
-    f"UPDATE_MODULES={cfg['update_modules']} RGB_RECONSTRUCTION_LOSS={not encoder_only(cfg)}",
+    f"UPDATE_MODULES={cfg['update_modules']} RGB_RECONSTRUCTION_LOSS=True DECODER_FROZEN={encoder_only(cfg)}",
     flush=True,
 )
 print(

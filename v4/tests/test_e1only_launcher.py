@@ -24,8 +24,11 @@ def test_start_script_gates_background_training_on_e1only_report(tmp_path, outco
         mode="preflight",
         optimizer_updates=0,
         update_modules=["E1"] if outcome == "e1only" else ["E1", "D1"],
-        reconstruction_loss_enabled=outcome != "e1only",
-        binding={"config": {"schema": "ccrr-v4-phase2-g1-e1only-1"}},
+        reconstruction_loss_enabled=True,
+        binding={
+            "config": {"schema": "ccrr-v4-phase2-g1-e1only-1"},
+            "decoder_parameters_frozen": outcome == "e1only",
+        },
     )
     (package / "report.json").write_text(json.dumps(report))
     (package / "phase2.sh").write_text("""#!/usr/bin/env bash
