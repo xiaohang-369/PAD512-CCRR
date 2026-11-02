@@ -1,0 +1,30 @@
+{
+  "schema": "ccrr-v4-checkpoint-selection-1",
+  "runs": [
+    {
+      "label": "joint",
+      "name": "g1-train.20261022-122453.3890568",
+      "first_epoch": 1,
+      "last_epoch": 30,
+      "final_sha256": "25ebc5e61e64c5249f61a23d51725a651e4534aae85cc2bad08602f16dbb0c74"
+    },
+    {
+      "label": "resume",
+      "name": "g1-resume-train.20261022-174510.3977016",
+      "first_epoch": 31,
+      "last_epoch": 60,
+      "final_sha256": "685899c0c2b266a0ff6076b3d0b2ac33d67e42c9eb8d2b0559f5c37d9ff621a1"
+    }
+  ],
+  "role": "val_tune",
+  "images": 169,
+  "image_size": 512,
+  "medical_acceptance_threshold": null,
+  "weighted_score": null,
+  "selected_epoch": null,
+  "training_enabled": false,
+  "embedding_enabled": false,
+  "encryption_enabled": false,
+  "collection_next_phase": "stop_and_review_inventory",
+  "test_used_for_selection": false
+}

@@ -1,0 +1,90 @@
+{
+  "packages": [
+    {
+      "package": "PAD512-CCRR-V4-phase1-ba37500.tar.gz",
+      "sha256": "43654f28f018262a37f59c5c53434a01aad83724367df47f06341c33e649900a",
+      "commit": "ba37500af51c483c74c94ac26d2c8cbf56e5121a",
+      "members_sha256_verified": [
+        "README.md",
+        "code.bundle",
+        "install-code.sh",
+        "manifest.json",
+        "phase1-resources.json",
+        "phase1-train.json",
+        "phase1.sh",
+        "verify-package.py",
+        "vgg-provenance.json",
+        "vgg19-conv4_1.npz"
+      ],
+      "bundle_heads": [
+        "ba37500af51c483c74c94ac26d2c8cbf56e5121a refs/heads/V4"
+      ]
+    },
+    {
+      "package": "PAD512-CCRR-V4-g1-7f57516.tar.gz",
+      "sha256": "eb0ec0e7188751fe79d33c3feab026032425f9b88a894ef6e9a08575891584d5",
+      "commit": "7f575168107f38ef31b93f50c2af32a183cc78c9",
+      "members_sha256_verified": [
+        "README.md",
+        "code.bundle",
+        "install-code.sh",
+        "manifest.json",
+        "phase2-g1.json",
+        "phase2.sh",
+        "verify-package.py"
+      ],
+      "bundle_heads": [
+        "7f575168107f38ef31b93f50c2af32a183cc78c9 refs/heads/V4"
+      ]
+    },
+    {
+      "package": "PAD512-CCRR-V4-g1-resume60-d398fc1.tar.gz",
+      "sha256": "8ccfecc83140c10f13ed0c8ab3c27aa5fe513ee8b5b7a64467d6e09bbee1672d",
+      "commit": "d398fc11ff3044f352c8c9647152013e4552d48f",
+      "members_sha256_verified": [
+        "README.md",
+        "code.bundle",
+        "install-code.sh",
+        "manifest.json",
+        "phase2-g1-resume60.json",
+        "phase2.sh",
+        "start-training.sh",
+        "verify-package.py"
+      ],
+      "bundle_heads": [
+        "d398fc11ff3044f352c8c9647152013e4552d48f refs/heads/V4"
+      ]
+    }
+  ],
+  "returned_server_runs": [
+    {
+      "label": "joint",
+      "code_commit": "7f575168107f38ef31b93f50c2af32a183cc78c9",
+      "final_checkpoint": {
+        "file": "g1-epoch-030.pt",
+        "sha256": "25ebc5e61e64c5249f61a23d51725a651e4534aae85cc2bad08602f16dbb0c74",
+        "epoch": 30,
+        "step": 2700
+      },
+      "optimizer_updates": 2700,
+      "binding_sha256": "598caa2e2a3900805350e6804ace59ca2e7d8ffb317b63341342826a239b6e2c",
+      "report_sha256": "ef3933ae1bc3ca57d20dcc50795fad78c9ef1eafa9390ac57ce4e92b96218b30"
+    },
+    {
+      "label": "resume",
+      "code_commit": "d398fc11ff3044f352c8c9647152013e4552d48f",
+      "final_checkpoint": {
+        "file": "g1-epoch-060.pt",
+        "sha256": "685899c0c2b266a0ff6076b3d0b2ac33d67e42c9eb8d2b0559f5c37d9ff621a1",
+        "epoch": 60,
+        "step": 5400
+      },
+      "optimizer_updates": 5400,
+      "binding_sha256": "7b20f06e6e4c3d64257e6a796874f196802adf2692a2d75b464c48950d08a77a",
+      "report_sha256": "05076259e0b1b7327a78192b47142ad6c48b701144d0f886f9a841e2b2024b2c"
+    }
+  ],
+  "inventory_sha256": "fc7af8d16f275414ab9a56626e83743784c54e7e51ca46f76299e7b5db9a2eec",
+  "checkpoint_records": 60,
+  "unchanged_phase2_core_vs_d398": true
+}

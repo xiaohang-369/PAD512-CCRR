@@ -47,3 +47,23 @@ configs/*.local.yaml
 /verification/
 /scripts/verify_implementation.py
 /scripts/verify_refactor_equivalence.py
+
+# Model/data products, private credentials and local handoff artifacts.
+*.npy
+*.npz
+*.onnx
+*.tflite
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.log
+*.jsonl
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.bundle
+id_rsa
+id_ed25519
+.netrc
